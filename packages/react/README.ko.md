@@ -8,6 +8,8 @@ React Router 6/7을 위한 타입 안전 라우팅입니다. typed-router가 처
 npm install @hyeonqyu/typed-router-react zod
 ```
 
+`react-router-typesafe-routes`, `typesafe-routes`, 또는 TanStack Router로의 이전과 저울질하고 있다면 — [React Router 기준 비교 →](../../COMPARISON.ko.md#react-router를-쓰고-있다면)
+
 ## 1. 트리 선언하기
 
 다른 typed-router 어댑터와 같은 트리 형태에, React Router가 실제로 필요로 하는 것 하나만 추가합니다 — 렌더링할 엘리먼트입니다. `_metadata.element`에 페이지를, `_metadata.layout`에 감싸는 레이아웃을 넣으세요.

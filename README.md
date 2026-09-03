@@ -22,6 +22,14 @@ npm install @hyeonqyu/typed-router-react zod  # React Router
 
 The rest of this page explains the ideas both guides build on.
 
+## How it compares
+
+Two things here are not in the alternatives surveyed. **The declaration produces the router configuration** — among tools that add types to a router you already use, typed-router is the only one that also emits that router's config, so on React Router a route cannot exist without being declared. And **metadata is typed per route rather than per app**, including when you enumerate the tree to build a menu, breadcrumbs or a sitemap — the usual reason to attach metadata at all.
+
+What it does not do is anything about data: no loaders, no caching, no code splitting, no loading or error UI. It types a router; it does not replace one. So **"why not TanStack Router?"** has a short answer — TanStack is a router and this is not, and on Next.js TanStack has no integration to install in the first place.
+
+**[The full comparison →](./COMPARISON.md)** — separate tables for Next.js and React Router, since your realistic alternatives depend on which you're using, with every claim dated and traceable.
+
 ## The route tree
 
 A route tree is a nested object. Each key is a URL segment; a node becomes a real, navigable route the moment it has a `_metadata` block:

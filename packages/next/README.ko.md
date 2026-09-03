@@ -8,6 +8,8 @@ Next.js App Router를 위한 타입 안전 라우팅입니다. typed-router가 �
 npm install @hyeonqyu/typed-router-next zod
 ```
 
+Next 내장 `typedRoutes`나 `nextjs-routes`, `pathpida`, `next-typesafe-url`, `next-safe-navigation`과 저울질하고 있다면 — [Next.js 기준 비교 →](../../COMPARISON.ko.md#nextjs를-쓰고-있다면)
+
 ## 1. 트리 선언하기
 
 키가 곧 URL 세그먼트이므로, 트리가 `src/app/` 디렉터리와 그대로 대응됩니다 — `[id]`, `[...slug]`, `(group)`은 Next.js에서와 정확히 같은 의미입니다. 루트인 `app/page.tsx`는 빈 키 `''`로 선언하고, 호출할 때는 그대로 `routes.buildHref('/')`입니다.
