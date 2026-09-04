@@ -8,7 +8,7 @@ Type-safe routing for React Router 6/7. If you're new to typed-router, [the proj
 npm install @hyeonqyu/typed-router-react zod
 ```
 
-Weighing this against `react-router-typesafe-routes`, `typesafe-routes`, or moving to TanStack Router? [How it compares, for React Router →](../../COMPARISON.md#if-youre-on-react-router)
+Still deciding between this, `react-router-typesafe-routes`, `typesafe-routes`, or moving to TanStack Router? Start with [the React Router comparison](../../COMPARISON.md#if-youre-on-react-router).
 
 ## 1. Declare your tree
 

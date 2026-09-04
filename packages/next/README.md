@@ -8,7 +8,7 @@ Type-safe routing for the Next.js App Router. If you're new to typed-router, [th
 npm install @hyeonqyu/typed-router-next zod
 ```
 
-Weighing this against Next's built-in `typedRoutes`, `nextjs-routes`, `pathpida`, `next-typesafe-url` or `next-safe-navigation`? [How it compares, for Next.js →](../../COMPARISON.md#if-youre-on-nextjs)
+Still deciding between this, Next's built-in `typedRoutes`, `nextjs-routes`, `pathpida`, `next-typesafe-url` and `next-safe-navigation`? Start with [the Next.js comparison](../../COMPARISON.md#if-youre-on-nextjs).
 
 ## 1. Declare your tree
 

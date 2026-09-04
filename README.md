@@ -24,11 +24,11 @@ The rest of this page explains the ideas both guides build on.
 
 ## How it compares
 
-Two things here are not in the alternatives surveyed. **The declaration produces the router configuration** — among tools that add types to a router you already use, typed-router is the only one that also emits that router's config, so on React Router a route cannot exist without being declared. And **metadata is typed per route rather than per app**, including when you enumerate the tree to build a menu, breadcrumbs or a sitemap — the usual reason to attach metadata at all.
+Two things came out of surveying the alternatives. First, **the tree you declare produces the router config.** Plenty of tools add types to a router you already use; none of the others also build its configuration, which on React Router means a route can't exist without being declared. Second, **metadata is typed per route rather than app-wide**, and stays typed when you walk the tree to build a menu or a sitemap — usually the reason you attached metadata in the first place.
 
-What it does not do is anything about data: no loaders, no caching, no code splitting, no loading or error UI. It types a router; it does not replace one. So **"why not TanStack Router?"** has a short answer — TanStack is a router and this is not, and on Next.js TanStack has no integration to install in the first place.
+Data is the part it stays out of: no loaders, no caching, no code splitting, no loading or error UI. It types a router rather than replacing one. That's also the answer to **"why not TanStack Router?"** — TanStack is a router and this isn't, and on Next.js there's no TanStack integration to install anyway.
 
-**[The full comparison →](./COMPARISON.md)** — separate tables for Next.js and React Router, since your realistic alternatives depend on which you're using, with every claim dated and traceable.
+**[Full comparison →](./COMPARISON.md)** — Next.js and React Router get separate tables, since the alternatives you can realistically pick differ. Every number says when it was checked and how.
 
 ## The route tree
 
