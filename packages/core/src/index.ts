@@ -82,3 +82,5 @@ export type {
   SearchParamsInput,
   SearchParamsOutput,
 } from './tree.types';
+
+export { children, type RouteChildren } from './tree.utils';

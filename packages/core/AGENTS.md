@@ -334,6 +334,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `parsePathParams` | `(schemas, raw, options?, path?) => Record<string, unknown>` | Standalone path-param parser. `schemas` is `Record<segmentName, schema>`. |
 | `collectRawSearchParams` | `(iterable) => RawSearchParams` | Folds `URLSearchParams`-like entries, repeated keys → arrays. |
 | `toSearchParamsString` | `(obj, path?) => string` | `'?a=1&b=2'`. Skips `undefined`/`null`, repeats arrays, ISO-serialises `Date`, JSON-encodes objects and nested arrays, throws on anything unserialisable. |
+| `children` | `(node) => RouteChildren<TNode>` | One node's child routes, with `_metadata` gone from the value **and** the type — what a menu level, a breadcrumb's siblings or a section index needs. Returns an object, so `keys`/`values`/`entries` all work. `(group)` keys are children like any other. Distributive over a union of nodes, so an unchecked `useCurrentRouteNode()` result is stripped member by member rather than collapsing. Frozen and cached per node, so two calls return the same object. |
 | `parseSegment` / `splitPath` / `isRouteGroup` | — | Segment classification helpers. |
 | `SearchParamsParseError` | `class extends Error` | Thrown under `onError: 'throw'`; `.cause` holds the validator's error. |
 | `PathParamsParseError` | `class extends Error { param, cause }` | The path-param equivalent; `.param` names the segment that failed. |
@@ -356,4 +357,4 @@ Also exported: `BuiltinMetadata<TContext>`, `MetadataValue<T, C>`,
 `PathParamsErrorMode`, `ParsePathParamsOptions`, `AnySchema`, `ParsableSchema`, `InferSchemaInput`,
 `InferSchemaOutput`, `RouteTreeInput`, `RouteNodeInput`, `RouteTreeInputWithMeta`,
 `RouteNodeInputWithMeta`, `RouteMetadata`, `RouteGroupKey`, `MetadataKey`, `SegmentKeys`,
-`HasRequiredKeys`, `Simplify`, `PathParamValue`, `TypedRoutes`, `RouteTree`.
+`HasRequiredKeys`, `Simplify`, `PathParamValue`, `RouteChildren`, `TypedRoutes`, `RouteTree`.

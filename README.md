@@ -200,6 +200,28 @@ routes.getMetadata('/home').badge;   // 'new'  — the contract is a floor, not 
 
 A node with no `_metadata` at all is organisational rather than a route, so the contract has nothing to enforce on it.
 
+### Walking one level of the tree
+
+`paths` and `collected` flatten the whole tree. A menu level, a breadcrumb's siblings and a section index are the other shape — the children of *one* node — and reaching for `Object.values(node)` there hands back the `_metadata` block alongside the real children, which renders as a phantom entry. `children()` returns the children and nothing else:
+
+```ts
+import { children } from '@hyeonqyu/typed-router-core';
+
+const support = routes.routes.support;
+
+Object.keys(support);              // ['_metadata', 'ask', 'notice'] — metadata leaks in
+Object.keys(children(support));    // ['ask', 'notice']
+
+Object.entries(children(support)).map(([key, node]) => ({
+  key,
+  title: node._metadata.title,     // typed per node, no cast
+}));
+```
+
+It returns an object rather than an array, so `keys`, `values` and `entries` all keep working, and the type — `RouteChildren<TNode>` — drops `_metadata` from the node while each child keeps the literal types it was declared with. A union of nodes, which is what an unchecked `useCurrentRouteNode()` gives you, is stripped member by member rather than collapsing to the keys they happen to share. Route group keys `(name)` are children like any other: they organise the tree, so what a group means for a given menu is yours to decide.
+
+The tree itself is untouched — `_metadata` stays an ordinary enumerable property, so a node still survives a spread, a `structuredClone` and a `toEqual`. Calling `children()` twice on the same node returns the same frozen object, so the result can sit in a dependency array without re-rendering.
+
 ## Framework-agnostic use
 
 The route tree is plain data. `@hyeonqyu/typed-router-core` exposes the same declaration with no React dependency at all — for scripts, tests, or a sitemap generator — and the `routes` object from either framework package carries these same methods alongside its hooks:

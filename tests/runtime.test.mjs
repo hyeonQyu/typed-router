@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { assertRouteMatches, defineRoutes, isSameOrAncestorRoute } from '@hyeonqyu/typed-router-core';
+import { assertRouteMatches, children, defineRoutes, isSameOrAncestorRoute } from '@hyeonqyu/typed-router-core';
 import { toRouteObjects } from '@hyeonqyu/typed-router-react';
 
 const routes = defineRoutes({
@@ -547,4 +547,31 @@ test('a route whose segments declare nothing behaves exactly as it did before', 
   assert.deepEqual(routes.parseParams('/docs/[...slug]', { slug: ['a', 'b'] }), { slug: ['a', 'b'] });
   assert.deepEqual(routes.parseParams('/files/[[...path]]', {}), {});
   assert.deepEqual(routes.parseParams('/home', {}), {});
+});
+
+/* ── children() ──────────────────────────────────────────────────────────── */
+
+test('children drops the metadata block and nothing else', () => {
+  assert.deepEqual(Object.keys(children(routes.routes)), ['home', '(shop)', 'docs', 'files']);
+  assert.deepEqual(Object.keys(children(routes.routes['(shop)'].products)), ['[id]']);
+
+  // A leaf declares only metadata, so it has no children at all.
+  assert.deepEqual(Object.keys(children(routes.routes.home)), []);
+});
+
+test('children is a shallow view: the child nodes come back untouched', () => {
+  const products = routes.routes['(shop)'].products;
+
+  assert.equal(children(routes.routes['(shop)']).products, products);
+  assert.deepEqual(children(products)['[id]']._metadata, { title: 'Detail' });
+
+  // The node itself is not rewritten — metadata is still enumerable on the tree.
+  assert.ok(Object.keys(products).includes('_metadata'));
+});
+
+test('children returns the same frozen object for the same node', () => {
+  const first = children(routes.routes);
+
+  assert.equal(children(routes.routes), first);
+  assert.ok(Object.isFrozen(first));
 });

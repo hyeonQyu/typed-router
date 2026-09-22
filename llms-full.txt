@@ -296,6 +296,38 @@ meta.accessible;   // boolean — not the `(ctx: AppContext) => boolean` the tre
 
 ---
 
+### 4.1 Walking one level of the tree
+
+`paths` and `collected` flatten the whole tree. A menu level, a breadcrumb's siblings and a section
+index are the other shape — the children of *one* node — and that is where `_metadata` gets in the
+way: `Object.keys(node)` lists it alongside the real children, so the menu grows a phantom entry.
+`children(node)` returns the children and nothing else, in value and in type.
+
+```ts
+import { children } from '@hyeonqyu/typed-router-core';   // re-exported by both adapters
+
+const support = routes.routes.support;
+
+Object.keys(support);            // ['_metadata', 'ask', 'notice'] — metadata leaks in
+Object.keys(children(support));  // ['ask', 'notice']
+
+Object.entries(children(support)).map(([key, node]) => ({ key, title: node._metadata.title }));
+```
+
+It returns an object, not an array, so `keys` / `values` / `entries` all keep working; the type
+`RouteChildren<TNode>` drops `_metadata` from the node, so each child keeps the literal types it was
+declared with and no cast is needed. It is distributive: a union of nodes — what an unchecked
+`useCurrentRouteNode()` returns — is stripped member by member, instead of collapsing to the keys
+its members share (which is only `_metadata`). A node typed loosely enough to have a string index
+signature, such as `match(url)?.node`, has no `_metadata` key to remove and stays as loose as it
+was. Route group keys `(name)` are children like any
+other — the helper strips metadata and decides nothing else. The result is frozen and cached per
+node, so two calls on the same node return the same object and it is safe in a dependency array.
+The tree itself is untouched: `_metadata` stays an ordinary enumerable property, so a node still
+survives a spread, a `structuredClone` and a `toEqual`.
+
+---
+
 ## 5. Building URLs
 
 `routes.buildHref(path, args)` is the only correct way to produce a URL. The first argument is a
@@ -956,7 +988,7 @@ a `defineRoutes` result:
 import {
   buildHref, collectRoutes, matchRoute, parseSearchParams,
   collectRawSearchParams, toSearchParamsString,
-  parseSegment, splitPath, isRouteGroup, METADATA_KEY,
+  parseSegment, splitPath, isRouteGroup, children, METADATA_KEY,
 } from '@hyeonqyu/typed-router-core';
 
 buildHref('/products/[id]', { params: { id: 7 }, searchParams: { page: 2 } }); // untyped path
@@ -968,6 +1000,7 @@ toSearchParamsString({ page: 2, tags: ['a', 'b'] });               // '?page=2&t
 toSearchParamsString({ f: { min: 1, max: 9 } });                   // '?f=%7B%22min%22%3A1%2C%22max%22%3A9%7D'
 splitPath('/products/[id]').map(parseSegment);
 isRouteGroup('(account)');                                          // true
+children(routes.routes.products);                                   // children only, no `_metadata`
 METADATA_KEY;                                                       // '_metadata'
 ```
 
@@ -1083,7 +1116,7 @@ against the route the live URL matched; a mismatch throws `RouteMismatchError` (
 `toRouteObjects()` and `<TypedRoutes />`, and its `prefetch` is a no-op while `refresh` is
 `navigate(0)`.
 
-**Exported functions:** re-exported by **every** package — `buildHref`, `matchRoute`,
+**Exported functions:** re-exported by **every** package — `buildHref`, `children`, `matchRoute`,
 `collectRoutes`, `parseSearchParams`, `parsePathParams`, `toSearchParamsString`, `resolveMetadata`,
 `resolveMetadataValue`, `isRouteGroup`, `METADATA_KEY`, `SearchParamsParseError`,
 `PathParamsParseError`, `RouteMismatchError`, `assertRouteMatches`, `isSameOrAncestorRoute`.
@@ -1092,7 +1125,7 @@ against the route the live URL matched; a mismatch throws `RouteMismatchError` (
 `splitPath`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
 
 **Exported types:** `Pathname`, `SearchParams`, `Params`, `RouteNodeOf`, `RouteMetadataOf`,
-`CollectedRouteOf`, `RouteArgs`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
+`CollectedRouteOf`, `RouteArgs`, `RouteChildren`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
 `RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `ResolvedMetadata`, `ResolvableMetadataKey`,
 `UseCurrentRouteNode`, `AnySchema`, `SearchParamsErrorMode`,
 `PathParamsErrorMode`, `RawPathParams`, `PathParamSchemas`,
