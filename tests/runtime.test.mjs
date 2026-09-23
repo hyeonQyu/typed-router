@@ -575,3 +575,11 @@ test('children returns the same frozen object for the same node', () => {
   assert.equal(children(routes.routes), first);
   assert.ok(Object.isFrozen(first));
 });
+
+test('children of a mutable object reflects later mutation instead of a stale cache', () => {
+  const loose = { _metadata: {}, a: {} };
+  assert.deepEqual(Object.keys(children(loose)), ['a']);
+
+  loose.b = {};
+  assert.deepEqual(Object.keys(children(loose)), ['a', 'b']);
+});

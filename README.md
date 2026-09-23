@@ -220,7 +220,7 @@ Object.entries(children(support)).map(([key, node]) => ({
 
 It returns an object rather than an array, so `keys`, `values` and `entries` all keep working, and the type — `RouteChildren<TNode>` — drops `_metadata` from the node while each child keeps the literal types it was declared with. A union of nodes, which is what an unchecked `useCurrentRouteNode()` gives you, is stripped member by member rather than collapsing to the keys they happen to share. Route group keys `(name)` are children like any other: they organise the tree, so what a group means for a given menu is yours to decide.
 
-The tree itself is untouched — `_metadata` stays an ordinary enumerable property, so a node still survives a spread, a `structuredClone` and a `toEqual`. Calling `children()` twice on the same node returns the same frozen object, so the result can sit in a dependency array without re-rendering.
+The tree itself is untouched — `_metadata` stays an ordinary enumerable property, so a node still survives a spread, a `structuredClone` and a `toEqual`. Calling `children()` twice on the same node of a declared tree returns the same frozen object, so the result can sit in a dependency array without re-rendering.
 
 ## Framework-agnostic use
 

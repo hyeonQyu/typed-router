@@ -22,7 +22,11 @@ import { METADATA_KEY } from './path.utils';
  */
 export type RouteChildren<TNode> = TNode extends unknown ? Pick<TNode, SegmentKeys<TNode>> : never;
 
-/** One derived children view per node, so repeated calls keep referential identity. */
+/**
+ * One derived children view per node, so repeated calls keep referential identity. Only
+ * frozen nodes are cached: a mutable object could gain a child after the first call, and
+ * the cache would go on serving the view from before it.
+ */
 const cache = new WeakMap<object, object>();
 
 /**
@@ -40,8 +44,9 @@ const cache = new WeakMap<object, object>();
  * Route group keys `(name)` are children like any other — they organise the tree, so what
  * a group means for a given menu is the caller's call, not this function's.
  *
- * The result is frozen and cached per node: calling it twice on the same node returns the
- * same object, so it can sit in a dependency array or a memoised prop without re-rendering.
+ * The result is frozen, and cached per node when the node is frozen — which every node of
+ * a `defineRoutes` tree is — so calling it twice on the same declared node returns the same
+ * object, and it can sit in a dependency array or a memoised prop without re-rendering.
  * It is a shallow view — the child values are the nodes themselves, metadata included.
  */
 export const children = <TNode extends object>(node: TNode): RouteChildren<TNode> => {
@@ -56,7 +61,7 @@ export const children = <TNode extends object>(node: TNode): RouteChildren<TNode
   }
 
   Object.freeze(view);
-  cache.set(node, view);
+  if (Object.isFrozen(node)) cache.set(node, view);
 
   return view as RouteChildren<TNode>;
 };

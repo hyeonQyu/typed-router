@@ -322,7 +322,8 @@ its members share (which is only `_metadata`). A node typed loosely enough to ha
 signature, such as `match(url)?.node`, has no `_metadata` key to remove and stays as loose as it
 was. Route group keys `(name)` are children like any
 other — the helper strips metadata and decides nothing else. The result is frozen and cached per
-node, so two calls on the same node return the same object and it is safe in a dependency array.
+declared node, so two calls on the same node of a `defineRoutes` tree return the same object and it
+is safe in a dependency array.
 The tree itself is untouched: `_metadata` stays an ordinary enumerable property, so a node still
 survives a spread, a `structuredClone` and a `toEqual`.
 
