@@ -1,6 +1,6 @@
 {
   "name": "@hyeonqyu/typed-router-next",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Type-safe routing for Next.js App Router: one route tree, typed pathnames, params and search params",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
@@ -58,7 +58,7 @@
     "zod": "^3.24.0 || ^4.0.0"
   },
   "dependencies": {
-    "@hyeonqyu/typed-router-core": "^2.1.0"
+    "@hyeonqyu/typed-router-core": "^2.2.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.5",
