@@ -199,6 +199,28 @@ routes.getMetadata('/home').badge;   // 'new'  — 계약은 하한이지 상한
 
 `_metadata` 자체가 없는 노드는 라우트가 아니라 조직용이므로, 계약이 강제할 대상이 없습니다.
 
+### 트리를 한 단계만 훑기
+
+`paths`와 `collected`는 트리 전체를 평탄화합니다. 메뉴 한 단계, 브레드크럼의 형제 항목, 섹션 인덱스는 그 반대 — *한* 노드의 자식들 — 이고, 여기서 `Object.values(node)`를 쓰면 실제 자식과 함께 `_metadata` 블록이 딸려 나와 유령 항목으로 렌더됩니다. `children()`은 자식만 돌려줍니다:
+
+```ts
+import { children } from '@hyeonqyu/typed-router-core';
+
+const support = routes.routes.support;
+
+Object.keys(support);              // ['_metadata', 'ask', 'notice'] — 메타데이터가 섞여 나온다
+Object.keys(children(support));    // ['ask', 'notice']
+
+Object.entries(children(support)).map(([key, node]) => ({
+  key,
+  title: node._metadata.title,     // 노드별로 타입이 붙는다, 캐스팅 없이
+}));
+```
+
+배열이 아니라 객체를 돌려주므로 `keys`·`values`·`entries`가 모두 그대로 동작하고, 타입 `RouteChildren<TNode>`가 노드에서 `_metadata`를 걷어내되 각 자식은 선언 당시의 리터럴 타입을 유지합니다. 경로를 확인하지 않은 `useCurrentRouteNode()`가 돌려주는 것 같은 노드 유니언도, 공통 키만 남기고 무너지는 대신 멤버별로 각각 걷어냅니다. 라우트 그룹 키 `(name)`도 다른 자식과 똑같이 포함됩니다 — 그룹은 트리를 조직하는 장치이고, 특정 메뉴에서 그룹을 어떻게 다룰지는 여러분이 정할 문제입니다.
+
+트리 자체는 건드리지 않습니다. `_metadata`는 여전히 평범한 열거 가능 속성이라 노드는 스프레드·`structuredClone`·`toEqual`을 그대로 통과합니다. 선언된 트리의 같은 노드로 `children()`을 두 번 부르면 같은 동결 객체가 돌아오므로, 결과를 의존성 배열에 그대로 넣어도 재렌더가 생기지 않습니다.
+
 ## 프레임워크 독립적인 사용
 
 라우트 트리는 순수한 데이터입니다. `@hyeonqyu/typed-router-core`는 React 의존성이 전혀 없는 동일한 선언 방식을 제공합니다 — 스크립트, 테스트, sitemap 생성기 같은 곳에서요. 그리고 각 프레임워크 패키지에서 얻는 `routes` 객체도 훅들과 함께 이 메서드들을 똑같이 가지고 있습니다.

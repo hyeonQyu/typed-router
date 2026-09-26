@@ -310,7 +310,8 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | `PathParams` / `PathParamsOutput` *(type)* | `<TPath, TTree = unknown>` | What you *write* vs. what you *read back*. Without the tree both fall back to the undeclared defaults (`string \| number` / `string`); pass `typeof routes.$types.tree` to see declared `paramSchema`s. |
 | `Params` *(type)* | `<typeof routes, TPath>` | The read side, tree already applied — prefer this to `PathParamsOutput`. |
 | `NavigateArgs` / `NavigateArgsTuple` / `NavigateOptions` *(type)* | Next-specific navigation args | `NavigateOptions = { scroll?: boolean }`. |
-| `BuiltinMetadata` / `RouteMetadata` / `MetadataValue` / `AnySchema` / `RouteMatch` / `RoutePaths` *(type)* | core types, re-exported | `AnySchema` is structural — that is why `zod` stays optional. |
+| `BuiltinMetadata` / `RouteMetadata` / `MetadataValue` / `AnySchema` / `RouteMatch` / `RoutePaths` / `RouteChildren` *(type)* | core types, re-exported | `AnySchema` is structural — that is why `zod` stays optional. |
+| `children` *(export)* | `(node) => RouteChildren<TNode>` | One node's children with `_metadata` gone from the value **and** the type — for a menu level, a breadcrumb's siblings or a section index, where `Object.values(node)` would otherwise yield the metadata block. Returns an object, so `keys`/`values`/`entries` all work; `(group)` keys are children like any other. There is no `routes.` equivalent — use this one. |
 | `matchRoute` / `collectRoutes` / `isRouteGroup` / `METADATA_KEY` / `toSearchParamsString` *(export)* | low-level core utilities | App code should use `routes.match` / `routes.paths` instead. |
 
 Exported from `@hyeonqyu/typed-router-next/check` — a Node-only entry point, never importable from application code. Nothing here is re-exported from the main entry, and nothing from the main entry is available here:
