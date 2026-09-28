@@ -221,6 +221,38 @@ Object.entries(children(support)).map(([key, node]) => ({
 
 트리 자체는 건드리지 않습니다. `_metadata`는 여전히 평범한 열거 가능 속성이라 노드는 스프레드·`structuredClone`·`toEqual`을 그대로 통과합니다. 선언된 트리의 같은 노드로 `children()`을 두 번 부르면 같은 동결 객체가 돌아오므로, 결과를 의존성 배열에 그대로 넣어도 재렌더가 생기지 않습니다.
 
+### 앱 사이에서 트리 공유하기
+
+모노레포에서 앱 A가 앱 B의 페이지로 링크를 걸 때, 그 링크도 앱 내부 링크처럼 자동완성되고 타입 검사를 받아야 합니다. A가 B에게서 필요한 건 구조 — pathname, 동적 세그먼트, 그 스키마 — 이고, 받아서는 안 되는 건 B의 메타데이터 — 번역 키 타입, 에셋, 지연 로딩되는 페이지 — 입니다. 그러니 구조는 공유 패키지에서 한 번만 선언하고, 소유 앱이 pathname 단위로 메타데이터를 붙이게 합니다:
+
+```ts
+// 공유 패키지 — 구조만 담으므로 어느 앱이든 의존할 수 있다
+export const accountRoutes = defineRoutes({
+  info:     { _metadata: {} },
+  activity: { _metadata: {}, quest: { _metadata: {} } },
+});
+
+// 소유 앱
+import { attachMetadata } from '@hyeonqyu/typed-router-react'; // -next, -core도 동일
+
+export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+  '/info':           { title: 'GNB_USER_INFO', element: <UserInfo /> },
+  '/activity':       { title: 'GNB_MY_ACTIVITY' },
+  '/activity/quest': { title: 'GNB_MY_QUESTS' },
+});
+
+routes.getMetadata('/info').title;  // 'GNB_USER_INFO' — withMeta와 마찬가지로 리터럴
+routes.paths;                       // accountRoutes.paths와 정확히 같다
+```
+
+- **키는 공유 트리의 pathname입니다.** 공유 트리에 없는 pathname은 컴파일 에러이므로, 공유 트리에서 라우트를 지우면 거기에 아직 메타데이터를 붙이는 모든 앱이 깨집니다 — 트리를 두 벌 두었을 때는 없던 검사입니다.
+- **결과는 여느 라우트 트리와 같습니다.** `getMetadata`, `match`, `collected`, `children()`, 훅, 그리고 React의 `toRouteObjects`까지 모두 붙인 메타데이터를 읽습니다.
+- **각 항목은 공유 트리의 `_metadata` 위에 병합됩니다.** 빠뜨린 라우트는 공유 트리의 것을 그대로 씁니다. `paramSchema`와 `searchParamsSchema`는 공유 계약의 일부라서 항상 공유 트리에서 오고, 여기서는 지정할 수 없습니다.
+- **공유 트리는 변경되지 않습니다.** 여러 앱이 같은 트리에 각자의 메타데이터를 붙일 수 있습니다.
+- `.withMeta<Contract, Context>()`는 선언한 트리에서와 똑같이 모든 항목에 계약을 강제합니다. 없으면 각 항목이 라우트별로 추론됩니다.
+
+붙인 트리는 컴파일러가 한 번 더 훑기 때문에 중첩 한 단계쯤의 비용이 듭니다. 선언한 트리의 `collected` 유니언은 31단계까지 컴파일되지만, 붙인 트리는 29단계까지입니다.
+
 ## 프레임워크 독립적인 사용
 
 라우트 트리는 순수한 데이터입니다. `@hyeonqyu/typed-router-core`는 React 의존성이 전혀 없는 동일한 선언 방식을 제공합니다 — 스크립트, 테스트, sitemap 생성기 같은 곳에서요. 그리고 각 프레임워크 패키지에서 얻는 `routes` 객체도 훅들과 함께 이 메서드들을 똑같이 가지고 있습니다.

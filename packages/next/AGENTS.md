@@ -280,6 +280,7 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | Name | Signature | Notes |
 | --- | --- | --- |
 | `defineRoutes` *(export)* | `(tree) => TypedRoutes<TTree>` | Entry point. `.withMeta<TMetadata, TContext>()(tree)` for a shared metadata contract. |
+| `attachMetadata` *(export)* | `(source) => (patch) => TypedRoutes`, also `.withMeta<TMetadata, TContext>()(patch)` | For a tree declared in a shared package (usually with core's `defineRoutes`, structure only): attaches this app's metadata by pathname and returns this package's full routes object, so hooks and `TypedLink` see it. Keys are the source's pathnames — an undeclared one is a compile error. Entries merge over the source's `_metadata`; `paramSchema` / `searchParamsSchema` stay the source's. The source is not mutated. |
 | `TypedLink` | `<TPath>(props: TypedLinkProps<TTree, TPath>) => ReactElement` | Server-safe (no hooks). Wraps `next/link`; forwards every other prop. Props: `href`, `params`, `searchParams`, `hash`. |
 | `useTypedRouter()` | `() => { push, replace, prefetch, back, forward, refresh }` | `'use client'`. `push/replace/prefetch(pattern, args?)`; `args` also takes `scroll` (ignored by `prefetch`). |
 | `useTypedParams(pattern, opts?)` | `(pattern, { onError? }?) => PathParamsOutput<TPath, TTree>` | `'use client'`. Reads the live URL; the pattern picks the types and the `paramSchema`s applied, and is checked against the matched route — a mismatch throws `RouteMismatchError`, an ancestor is fine. Undeclared segments are `string` / `string[]`. |

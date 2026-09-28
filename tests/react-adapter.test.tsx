@@ -7,7 +7,8 @@
  * them is to mount a component under a real router and look at what it rendered. The
  * type tests next door prove the signatures; this file proves the behaviour behind them.
  */
-import { defineRoutes } from '@hyeonqyu/typed-router-react';
+import { defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
+import { attachMetadata, defineRoutes } from '@hyeonqyu/typed-router-react';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -222,5 +223,40 @@ describe('TypedRoutes', () => {
 
     expect(screen.queryByText('home page')).toBeNull();
     expect(document.body.textContent).toBe('');
+  });
+});
+
+describe('attachMetadata', () => {
+  /** Declared with core, as a shared package would: no pages, no React. */
+  const shared = defineCoreRoutes({
+    orders: {
+      _metadata: {},
+      '[id]': { _metadata: { paramSchema: z.number() } },
+    },
+  });
+
+  const app = attachMetadata(shared)({
+    '/orders': { title: 'Orders', element: <p>orders page</p> },
+    '/orders/[id]': { title: 'Order', element: <p>order page</p> },
+  });
+
+  test('the pages it attaches are what the router renders', () => {
+    render(
+      <MemoryRouter initialEntries={['/orders/7']}>
+        <app.TypedRoutes />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('order page')).toBeTruthy();
+  });
+
+  test('the hooks read the attached metadata and the shared schemas together', () => {
+    const Probe = () => {
+      const current = app.useCurrentRoute();
+      return <Show value={{ title: current.metadata?.title, params: app.useTypedParams('/orders/[id]') }} />;
+    };
+
+    at('/orders/7', <Probe />);
+    expect(out()).toEqual({ title: 'Order', params: { id: 7 } });
   });
 });

@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { assertRouteMatches, children, defineRoutes, isSameOrAncestorRoute } from '@hyeonqyu/typed-router-core';
+import { assertRouteMatches, attachMetadata, children, defineRoutes, isSameOrAncestorRoute } from '@hyeonqyu/typed-router-core';
 import { toRouteObjects } from '@hyeonqyu/typed-router-react';
 
 const routes = defineRoutes({
@@ -582,4 +582,81 @@ test('children of a mutable object reflects later mutation instead of a stale ca
 
   loose.b = {};
   assert.deepEqual(Object.keys(children(loose)), ['a', 'b']);
+});
+
+/* ── attachMetadata() ────────────────────────────────────────────────────── */
+
+const productId = z.number();
+
+/** The shared half: structure and schemas, nothing app-specific. */
+const shared = defineRoutes({
+  info: { _metadata: {} },
+  activity: { _metadata: { label: 'Activity' }, quest: { _metadata: {} } },
+  '(auth)': { _metadata: { note: 'group' }, login: { _metadata: {} } },
+  products: { '[id]': { _metadata: { paramSchema: productId } } },
+});
+
+test('attachMetadata merges by pathname and keeps the structure as it was', () => {
+  const ia = attachMetadata(shared)({
+    '/info': { title: 'Info' },
+    '/activity': { title: 'Activity page' },
+    '/login': { title: 'Login' },
+  });
+
+  assert.deepEqual(ia.paths, shared.paths);
+  assert.deepEqual(ia.getMetadata('/info'), { title: 'Info' });
+  assert.deepEqual(ia.getMetadata('/activity'), { label: 'Activity', title: 'Activity page' });
+  assert.deepEqual(ia.getMetadata('/login'), { title: 'Login' });
+
+  // A route group is never a route, so its own metadata is not a merge target.
+  assert.deepEqual(ia.routes['(auth)']._metadata, { note: 'group' });
+});
+
+test('attachMetadata leaves unlisted routes with the source metadata object itself', () => {
+  const ia = attachMetadata(shared)({ '/info': { title: 'Info' } });
+
+  assert.equal(ia.getMetadata('/activity/quest'), shared.getMetadata('/activity/quest'));
+  assert.equal(ia.getMetadata('/products/[id]').paramSchema, productId);
+});
+
+test('attachMetadata does not touch the source, so consumers stay independent', () => {
+  const before = structuredClone(shared.getMetadata('/info'));
+  const a = attachMetadata(shared)({ '/info': { title: 'A' } });
+  const b = attachMetadata(shared)({ '/info': { title: 'B' } });
+
+  assert.deepEqual(shared.getMetadata('/info'), before);
+  assert.equal(a.getMetadata('/info').title, 'A');
+  assert.equal(b.getMetadata('/info').title, 'B');
+  assert.notEqual(a.routes, shared.routes);
+});
+
+test('attachMetadata returns a full route tree: match, collected, children and params all read the result', () => {
+  const ia = attachMetadata(shared)({ '/activity/quest': { title: 'Quests' }, '/products/[id]': { title: 'Product' } });
+
+  assert.equal(ia.match('/activity/quest')?.metadata?.title, 'Quests');
+  assert.equal(ia.collected.find((route) => route.path === '/activity/quest')?.metadata.title, 'Quests');
+  assert.equal(children(ia.routes.activity).quest._metadata.title, 'Quests');
+  assert.equal(children(ia.routes.activity), children(ia.routes.activity));
+  assert.ok(Object.isFrozen(ia.routes.activity));
+
+  // The source's `paramSchema` still coerces the segment on the attached tree.
+  assert.deepEqual(ia.parseParams('/products/[id]', { id: '7' }), { id: 7 });
+});
+
+test('attachMetadata throws on a pathname the source does not declare', () => {
+  assert.throws(() => attachMetadata(shared)({ '/settings': { title: 'Settings' } }), /"\/settings", which is not a route/);
+  // A group key is not part of any pathname.
+  assert.throws(() => attachMetadata(shared)({ '/(auth)/login': { title: 'Login' } }), /not a route/);
+});
+
+test('attachMetadata refuses structural fields, and an undefined one cannot blank out the source', () => {
+  assert.throws(
+    () => attachMetadata(shared)({ '/products/[id]': { paramSchema: z.string() } }),
+    /cannot set "paramSchema" on "\/products\/\[id\]"/,
+  );
+  assert.throws(() => attachMetadata(shared)({ '/info': { searchParamsSchema: z.object({}) } }), /searchParamsSchema/);
+
+  const ia = attachMetadata(shared)({ '/products/[id]': { title: 'Product', paramSchema: undefined } });
+  assert.equal(ia.getMetadata('/products/[id]').paramSchema, productId);
+  assert.ok(!('searchParamsSchema' in attachMetadata(shared)({ '/info': { searchParamsSchema: undefined } }).getMetadata('/info')));
 });

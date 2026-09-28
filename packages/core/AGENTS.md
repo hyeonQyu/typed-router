@@ -314,6 +314,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | --- | --- | --- |
 | `defineRoutes` | `(tree) => TypedRoutes<TTree>` | Entry point. Declares the IA and returns the typed routes object. |
 | `defineRoutes.withMeta` | `<TMetadata, TContext>() => (tree) => TypedRoutes<TTree>` | Same, constraining **every** `_metadata` block in the tree to `TMetadata & BuiltinMetadata<TContext>`, at any depth. Per-node inference still holds: literal types and fields outside `TMetadata` survive. A node with no `_metadata` is organisational, so nothing is enforced on it. |
+| `attachMetadata` | `(source) => (patch) => TypedRoutes<AttachedTree<TTree, TPatch>>`, also `.withMeta<TMetadata, TContext>()(patch)` | Attaches metadata to a tree declared elsewhere (a shared package), by pathname, without redeclaring it. Keys are the source's `RoutePaths` — an undeclared one is a compile error and throws. Each entry merges over the source's `_metadata`; routes left out keep theirs. `paramSchema` / `searchParamsSchema` always come from the source and cannot be set. The source is not mutated. The result is a full routes object. `source` is any `defineRoutes` result, from any package. |
 | `routes.routes` | `TTree` | The declared tree, structurally frozen. What adapters consume. |
 | `routes.paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname at runtime. |
 | `routes.collected` | `readonly GetCollectedRoute<TTree>[]` | `{ path, segments, node, metadata }` per route, one union member each — `path` stays a literal and `metadata` stays typed while enumerating. |
@@ -357,4 +358,6 @@ Also exported: `BuiltinMetadata<TContext>`, `MetadataValue<T, C>`,
 `PathParamsErrorMode`, `ParsePathParamsOptions`, `AnySchema`, `ParsableSchema`, `InferSchemaInput`,
 `InferSchemaOutput`, `RouteTreeInput`, `RouteNodeInput`, `RouteTreeInputWithMeta`,
 `RouteNodeInputWithMeta`, `RouteMetadata`, `RouteGroupKey`, `MetadataKey`, `SegmentKeys`,
-`HasRequiredKeys`, `Simplify`, `PathParamValue`, `RouteChildren`, `TypedRoutes`, `RouteTree`.
+`HasRequiredKeys`, `Simplify`, `PathParamValue`, `RouteChildren`, `TypedRoutes`, `RouteTree`,
+`AttachedTree`, `MetadataPatch`, `MetadataPatchWithMeta`, `OnlyRoutePaths`. `mergeRouteMetadata(tree, patch)` is the
+runtime half of `attachMetadata` that the adapters wrap; app code should not need it.

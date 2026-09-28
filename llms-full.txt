@@ -329,6 +329,53 @@ survives a spread, a `structuredClone` and a `toEqual`.
 
 ---
 
+### 4.2 Sharing a tree between apps
+
+In a monorepo where app A links into app B, A needs B's structure (pathnames, dynamic segments,
+their schemas) but must not receive B's metadata (translation-key types, assets, lazily loaded
+pages). Declare the structure once in a shared package, and let the owning app attach its metadata
+by pathname with `attachMetadata(source)` — exported by core and by both adapters, each returning
+its own routes object:
+
+```ts
+// shared package — structure only
+export const accountRoutes = defineRoutes({
+  info:     { _metadata: {} },
+  activity: { _metadata: {}, quest: { _metadata: {} } },
+});
+
+// the owning app
+import { attachMetadata } from '@hyeonqyu/typed-router-react';
+
+export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+  '/info':           { title: 'GNB_USER_INFO', element: <UserInfo /> },
+  '/activity':       { title: 'GNB_MY_ACTIVITY' },
+  '/activity/quest': { title: 'GNB_MY_QUESTS' },
+});
+
+routes.getMetadata('/info').title;  // 'GNB_USER_INFO' — literal
+routes.paths;                       // exactly accountRoutes.paths
+```
+
+Rules:
+
+- Keys are `RoutePaths` of the source — the pathname as navigated, so a route under `(auth)` is
+  keyed `/login`, not `/(auth)/login`. An undeclared pathname is a compile error (inline or in a
+  patch declared first and passed by name) and throws at runtime.
+- Each entry is merged over the source's `_metadata` (`{ ...source, ...entry }`); routes left out
+  keep the source's metadata object. There is no exhaustive variant.
+- `paramSchema` and `searchParamsSchema` always come from the source. Setting either is a compile
+  error and throws at runtime.
+- The source is not mutated; any number of consumers can attach to the same shared tree.
+- `.withMeta<TMetadata, TContext>()` enforces the contract on every entry. Without it, each entry is
+  inferred per route, as with `defineRoutes`.
+- The result is a full routes object: `getMetadata`, `match`, `collected`, `children()`, the hooks
+  and `toRouteObjects` all see the attached metadata.
+- Depth: the full `collected` union of an attached tree compiles to 29 levels, where a declared tree
+  reaches 31. `paths` and per-route lookups are unaffected at 30.
+
+---
+
 ## 5. Building URLs
 
 `routes.buildHref(path, args)` is the only correct way to produce a URL. The first argument is a
@@ -1122,11 +1169,11 @@ against the route the live URL matched; a mismatch throws `RouteMismatchError` (
 `resolveMetadataValue`, `isRouteGroup`, `METADATA_KEY`, `SearchParamsParseError`,
 `PathParamsParseError`, `RouteMismatchError`, `assertRouteMatches`, `isSameOrAncestorRoute`.
 **Core only**
-(not re-exported by the adapters) — `createRouteTree`, `collectRawSearchParams`, `parseSegment`,
-`splitPath`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
+(not re-exported by the adapters) — `createRouteTree`, `mergeRouteMetadata`, `collectRawSearchParams`,
+`parseSegment`, `splitPath`. **Each package its own** — `defineRoutes`, `attachMetadata`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
 
 **Exported types:** `Pathname`, `SearchParams`, `Params`, `RouteNodeOf`, `RouteMetadataOf`,
-`CollectedRouteOf`, `RouteArgs`, `RouteChildren`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
+`CollectedRouteOf`, `RouteArgs`, `RouteChildren`, `AttachedTree`, `MetadataPatch`, `MetadataPatchWithMeta`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
 `RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `ResolvedMetadata`, `ResolvableMetadataKey`,
 `UseCurrentRouteNode`, `AnySchema`, `SearchParamsErrorMode`,
 `PathParamsErrorMode`, `RawPathParams`, `PathParamSchemas`,
