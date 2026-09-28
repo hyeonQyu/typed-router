@@ -52,6 +52,14 @@ export default defineConfig([
     dts: true,
     esbuildPlugins: [keepClientBoundary('.js')],
   },
+  // The Pages Router entry. It imports `TypedLink` and the core, never `./client` or the
+  // package root, so `next/navigation` cannot reach a Pages Router bundle through it.
+  {
+    ...shared,
+    entry: { pages: 'src/pages/index.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+  },
   // `src/check.ts` reads the filesystem, so it ships as its own entry point and is
   // never reachable from `.` — that is what keeps `node:fs` out of browser bundles.
   {

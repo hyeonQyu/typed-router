@@ -91,6 +91,27 @@ const isIgnored = (pathname: string, patterns: readonly string[]): boolean =>
     return pathname === prefix || pathname.startsWith(`${prefix}/`);
   });
 
+const resolveDir = (dir: string, kind: 'app' | 'pages'): string => {
+  const root = resolve(dir);
+
+  if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Error(`typed-router: ${kind} directory "${dir}" does not exist (resolved to "${root}").`);
+  }
+
+  return root;
+};
+
+/** Both directions of drift between the tree and what a directory serves, sorted. */
+const compare = (routes: RoutesLike, onDisk: readonly string[], ignore: readonly string[]) => {
+  const declared = new Set(routes.paths);
+  const served = new Set(onDisk);
+
+  return {
+    missingFromDir: [...declared].filter((path) => !served.has(path) && !isIgnored(path, ignore)).sort(),
+    missingFromTree: [...served].filter((path) => !declared.has(path) && !isIgnored(path, ignore)).sort(),
+  };
+};
+
 /**
  * Compares the routes declared in the tree against the pages that exist under `app/`,
  * and reports the pathnames only one side knows about.
@@ -106,36 +127,29 @@ const isIgnored = (pathname: string, patterns: readonly string[]): boolean =>
  */
 export const findRouteDrift = (routes: RoutesLike, appDir: string, options: FindRouteDriftOptions = {}): RouteDriftReport => {
   const { ignore = [], pageExtensions = DEFAULT_PAGE_EXTENSIONS } = options;
-  const root = resolve(appDir);
+  const root = resolveDir(appDir, 'app');
 
-  if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) {
-    throw new Error(`typed-router: app directory "${appDir}" does not exist (resolved to "${root}").`);
-  }
-
-  const declared = new Set(routes.paths);
-  const onDisk = new Set(collectAppDirPaths(root, pageExtensions));
-
-  const missingFromAppDir = [...declared].filter((path) => !onDisk.has(path) && !isIgnored(path, ignore)).sort();
-  const missingFromTree = [...onDisk].filter((path) => !declared.has(path) && !isIgnored(path, ignore)).sort();
+  const { missingFromDir, missingFromTree } = compare(routes, collectAppDirPaths(root, pageExtensions), ignore);
 
   return {
-    missingFromAppDir,
+    missingFromAppDir: missingFromDir,
     missingFromTree,
-    inSync: missingFromAppDir.length === 0 && missingFromTree.length === 0,
+    inSync: missingFromDir.length === 0 && missingFromTree.length === 0,
   };
 };
 
-const describe = (report: RouteDriftReport, appDir: string): string => {
-  const lines = [`typed-router: the route tree and "${appDir}" disagree.`];
+/** The message both drift errors share; only the directory and its first list differ. */
+const describe = (dir: string, missingFromDir: readonly string[], missingFromTree: readonly string[]): string => {
+  const lines = [`typed-router: the route tree and "${dir}" disagree.`];
 
-  if (report.missingFromAppDir.length > 0) {
+  if (missingFromDir.length > 0) {
     lines.push('  declared in the tree, but no page exists — these type-check and 404 at runtime:');
-    lines.push(...report.missingFromAppDir.map((path) => `    ${path}`));
+    lines.push(...missingFromDir.map((path) => `    ${path}`));
   }
 
-  if (report.missingFromTree.length > 0) {
+  if (missingFromTree.length > 0) {
     lines.push('  a page exists, but the tree never declares it — live, yet missing from routes.paths:');
-    lines.push(...report.missingFromTree.map((path) => `    ${path}`));
+    lines.push(...missingFromTree.map((path) => `    ${path}`));
   }
 
   return lines.join('\n');
@@ -146,7 +160,7 @@ export class RouteDriftError extends Error {
   readonly report: RouteDriftReport;
 
   constructor(report: RouteDriftReport, appDir: string) {
-    super(describe(report, appDir));
+    super(describe(appDir, report.missingFromAppDir, report.missingFromTree));
     this.name = 'RouteDriftError';
     this.report = report;
   }
@@ -169,4 +183,142 @@ export class RouteDriftError extends Error {
 export const assertRoutesMatchAppDir = (routes: RoutesLike, appDir: string, options?: FindRouteDriftOptions): void => {
   const report = findRouteDrift(routes, appDir, options);
   if (!report.inSync) throw new RouteDriftError(report, appDir);
+};
+
+// --- the Pages Router ------------------------------------------------------------
+
+/**
+ * Files at the root of `pages/` that Next reads as the app shell or an error page rather
+ * than as a route: `_app`, `_document`, `_error`, and the static `404` / `500` pages.
+ */
+const PAGES_SPECIAL_FILES: ReadonlySet<string> = new Set(['_app', '_document', '_error', '404', '500']);
+
+/**
+ * The route name of a file under `pages/`, or `undefined` when it is not a page.
+ *
+ * The longest matching extension wins, so a project using `pageExtensions:
+ * ['page.tsx']` reads `about.page.tsx` as `about` and leaves `about.tsx` alone.
+ */
+const pageNameOf = (file: string, pageExtensions: readonly string[]): string | undefined => {
+  if (file.endsWith('.d.ts')) return undefined;
+
+  const extension = [...pageExtensions]
+    .sort((a, b) => b.length - a.length)
+    .find((candidate) => file.endsWith(`.${candidate}`) && file.length > candidate.length + 1);
+
+  return extension === undefined ? undefined : file.slice(0, -(extension.length + 1));
+};
+
+/**
+ * Every pathname `pages/` actually serves, in the tree's notation. Each page file is a
+ * route of its own — `products/[id].tsx` is `/products/[id]` — and an `index` file
+ * serves its folder: `products/index.tsx` is `/products`, `pages/index.tsx` is `/`.
+ *
+ * Unlike `app/`, a `pages/` folder name is always a URL segment: the Pages Router has no
+ * route groups, parallel slots or private folders, so `(shop)`, `@team` and `_folder`
+ * are read as the literal segments Next serves them at.
+ */
+const collectPagesDirPaths = (pagesDir: string, pageExtensions: readonly string[]): string[] => {
+  const found = new Set<string>();
+
+  const walk = (directory: string, url: string) => {
+    const atRoot = url === '';
+
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const { name } = entry;
+      if (name.startsWith('.') || name === 'node_modules') continue;
+
+      if (entry.isDirectory()) {
+        // `pages/api/**` are API routes: handlers, not pages.
+        if (atRoot && name === 'api') continue;
+
+        walk(join(directory, name), `${url}/${name}`);
+        continue;
+      }
+
+      const page = pageNameOf(name, pageExtensions);
+      // Next reads `/api` itself as an API route too, so `pages/api.ts` is no page either.
+      if (page === undefined || (atRoot && (PAGES_SPECIAL_FILES.has(page) || page === 'api'))) continue;
+
+      if (page === 'index') found.add(atRoot ? '/' : url);
+      else found.add(`${url}/${page}`);
+    }
+  };
+
+  walk(pagesDir, '');
+  return [...found];
+};
+
+export type FindPagesDirDriftOptions = {
+  /**
+   * Pathnames to leave out of the report: `'/admin/secret'` for one route, `'/admin/*'`
+   * for a route and everything under it. `_app`, `_document`, `_error`, `404`, `500` and
+   * `api/` are skipped already and never need listing here.
+   */
+  ignore?: readonly string[];
+  /** Mirrors `next.config.js` `pageExtensions`. Defaults to `['tsx', 'ts', 'jsx', 'js']`. */
+  pageExtensions?: readonly string[];
+};
+
+export type PagesDirDriftReport = {
+  /** Declared in the tree with no page under `pages/` — type-checks, then 404s. */
+  missingFromPagesDir: string[];
+  /** A page under `pages/` the tree never declares — live, but absent from `routes.paths`. */
+  missingFromTree: string[];
+  /** True when both lists are empty. */
+  inSync: boolean;
+};
+
+/**
+ * The Pages Router counterpart of {@link findRouteDrift}: compares the routes declared in
+ * the tree against the pages under `pages/`, and reports the pathnames only one side
+ * knows about.
+ *
+ * ```ts
+ * const report = findPagesDirDrift(routes, 'src/pages');
+ * if (!report.inSync) console.error(report.missingFromPagesDir, report.missingFromTree);
+ * ```
+ *
+ * `pagesDir` is resolved from the current working directory.
+ */
+export const findPagesDirDrift = (routes: RoutesLike, pagesDir: string, options: FindPagesDirDriftOptions = {}): PagesDirDriftReport => {
+  const { ignore = [], pageExtensions = DEFAULT_PAGE_EXTENSIONS } = options;
+  const root = resolveDir(pagesDir, 'pages');
+
+  const { missingFromDir, missingFromTree } = compare(routes, collectPagesDirPaths(root, pageExtensions), ignore);
+
+  return {
+    missingFromPagesDir: missingFromDir,
+    missingFromTree,
+    inSync: missingFromDir.length === 0 && missingFromTree.length === 0,
+  };
+};
+
+export class PagesDirDriftError extends Error {
+  /** The drift that caused the throw, so a caller can inspect it instead of parsing the message. */
+  readonly report: PagesDirDriftReport;
+
+  constructor(report: PagesDirDriftReport, pagesDir: string) {
+    super(describe(pagesDir, report.missingFromPagesDir, report.missingFromTree));
+    this.name = 'PagesDirDriftError';
+    this.report = report;
+  }
+}
+
+/**
+ * Throws {@link PagesDirDriftError} unless the tree and `pages/` declare exactly the same
+ * pathnames. The Pages Router counterpart of {@link assertRoutesMatchAppDir}:
+ *
+ * ```ts
+ * import { assertRoutesMatchPagesDir } from '@hyeonqyu/typed-router-next/check';
+ * import { routes } from '@/routes';
+ *
+ * test('the route tree matches src/pages', () => {
+ *   assertRoutesMatchPagesDir(routes, 'src/pages');
+ * });
+ * ```
+ */
+export const assertRoutesMatchPagesDir = (routes: RoutesLike, pagesDir: string, options?: FindPagesDirDriftOptions): void => {
+  const report = findPagesDirDrift(routes, pagesDir, options);
+  if (!report.inSync) throw new PagesDirDriftError(report, pagesDir);
 };

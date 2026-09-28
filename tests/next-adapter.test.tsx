@@ -9,7 +9,7 @@
  * all of its own logic lives.
  */
 import { defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
-import { attachMetadata, defineRoutes } from '@hyeonqyu/typed-router-next';
+import { attachMetadata, bindRoutes, defineRoutes } from '@hyeonqyu/typed-router-next';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -143,6 +143,20 @@ describe('attachMetadata', () => {
 
     at('/orders/7', <Probe />);
     expect(out()).toEqual({ title: 'Order', params: { id: 7 } });
+  });
+});
+
+describe('bindRoutes', () => {
+  test('gives a tree declared with core the hooks, reusing its parsers as they are', () => {
+    const shared = defineCoreRoutes({ orders: { '[id]': { _metadata: { title: 'Order', paramSchema: z.number() } } } });
+    const app = bindRoutes(shared);
+
+    const Probe = () => <Show value={{ pathname: app.useTypedPathname(), params: app.useTypedParams('/orders/[id]') }} />;
+
+    at('/orders/7', <Probe />);
+    expect(out()).toEqual({ pathname: '/orders/[id]', params: { id: 7 } });
+    expect(app.parseParams).toBe(shared.parseParams);
+    expect(app.routes).toBe(shared.routes);
   });
 });
 
