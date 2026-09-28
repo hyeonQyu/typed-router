@@ -820,6 +820,59 @@ folder names. The skipped conventions above never need listing.
 Opt-in on purpose: a check that blocks the build gets switched off, while one that fails in the
 project's own test suite is tuned by the person who knows the app.
 
+### 8.7 A tree declared elsewhere — `bindRoutes`
+
+A tree declared with core's `defineRoutes` — in a shared package, framework-free so any app can
+depend on it — gets this adapter's hooks and `TypedLink` from `bindRoutes`, without being declared a
+second time:
+
+```ts
+import { bindRoutes } from '@hyeonqyu/typed-router-next';
+import { routes as shared } from '@acme/shop-routes';
+
+export const routes = bindRoutes(shared); // same tree, paths and parsers; hooks added
+```
+
+Any core route tree works, including one returned by core's `attachMetadata`. When the app attaches
+metadata as well, this package's own `attachMetadata(shared)(patch)` does both in one step.
+
+### 8.8 The Pages Router — `@hyeonqyu/typed-router-next/pages`
+
+The same surface, backed by `next/router`: `defineRoutes`, `attachMetadata`, `bindRoutes`,
+`TypedLink`, `useTypedRouter`, `useTypedParams`, `useTypedSearchParams`, `useTypedPathname`,
+`useCurrentRoute`, `useCurrentRouteNode`, and the same core re-exports. It never loads the package
+root, so `next/navigation` stays out of a Pages Router bundle — a Pages Router app imports only from
+`/pages`.
+
+```ts
+import { bindRoutes } from '@hyeonqyu/typed-router-next/pages';
+import { routes as shared } from '@acme/shop-routes';
+
+export const { TypedLink, useTypedRouter, useTypedParams, useTypedSearchParams, useCurrentRoute } = bindRoutes(shared);
+```
+
+Keys mirror `pages/`: `pages/products/[id].tsx` is `products: { '[id]': { _metadata: {} } }`, and
+`pages/index.tsx` is `''`. The differences from the App Router:
+
+- **The current route is `router.pathname`**, the page Next rendered, rather than a match of the URL,
+  so rewrites cannot mislead it. `RouteMismatchError` works as in §8.4.
+- **`<RouterReady>` replaces `<Suspense>`.** A page without `getServerSideProps` is prerendered with
+  an empty `router.query`. `useTypedSearchParams` throws `RouteNotReadyError` until `isReady`;
+  `useTypedParams` throws it only while a required segment is still missing (a statically optimized
+  dynamic page before hydration — a `getStaticProps` page already has its segments). Wrap such
+  components in `<RouterReady fallback={…}>`, or gate them on `useRouterReady()`. Never gate on
+  `router.isReady` itself: on a statically rendered page without a query string it is `false` in the
+  HTML and `true` on the first client render, which fails hydration. `getServerSideProps` pages need
+  no boundary.
+- **`push` / `replace` also take `shallow`**, and return `next/router`'s `Promise<boolean>`.
+  `refresh()` re-navigates to the current URL, since the Pages Router has none of its own.
+
+The drift check's counterpart is `assertRoutesMatchPagesDir(routes, 'src/pages')` /
+`findPagesDirDrift`, reporting `{ missingFromPagesDir, missingFromTree, inSync }` and throwing
+`PagesDirDriftError`. It reads `pages/` as Next does: every page file is a route, `index` serves its
+folder, `_app`, `_document`, `_error`, `404`, `500` and `api/` at the root are skipped, and
+`(group)`, `@slot` and `_folder` are literal segments — they are App Router conventions.
+
 ---
 
 ## 9. React Router 6/7 (library mode)
@@ -1160,7 +1213,8 @@ On the returned `routes` object, in **every** package:
 `prefetch` / `back` / `forward` / `refresh`), `useCurrentRoute`, `useCurrentRouteNode(pathname?)`,
 `useTypedParams(pathname, options?)`, `useTypedPathname`, `useTypedSearchParams` — all client-only.
 The pathname `useTypedParams` takes, and the one `useCurrentRouteNode` optionally takes, are checked
-against the route the live URL matched; a mismatch throws `RouteMismatchError` (§8.4). `-react` adds
+against the route the live URL matched; a mismatch throws `RouteMismatchError` (§8.4). `-next/pages`
+has the same members backed by `next/router` (§8.8). `-react` adds
 `toRouteObjects()` and `<TypedRoutes />`, and its `prefetch` is a no-op while `refresh` is
 `navigate(0)`.
 
@@ -1170,7 +1224,7 @@ against the route the live URL matched; a mismatch throws `RouteMismatchError` (
 `PathParamsParseError`, `RouteMismatchError`, `assertRouteMatches`, `isSameOrAncestorRoute`.
 **Core only**
 (not re-exported by the adapters) — `createRouteTree`, `mergeRouteMetadata`, `collectRawSearchParams`,
-`parseSegment`, `splitPath`. **Each package its own** — `defineRoutes`, `attachMetadata`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
+`parseSegment`, `splitPath`. **Each package its own** — `defineRoutes`, `attachMetadata`; `bindRoutes` on `-next` and `-next/pages`. **`-next/pages` only** — `RouteNotReadyError`, `RouterReady`, `useRouterReady`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
 
 **Exported types:** `Pathname`, `SearchParams`, `Params`, `RouteNodeOf`, `RouteMetadataOf`,
 `CollectedRouteOf`, `RouteArgs`, `RouteChildren`, `AttachedTree`, `MetadataPatch`, `MetadataPatchWithMeta`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
@@ -1183,7 +1237,9 @@ against the route the live URL matched; a mismatch throws `RouteMismatchError` (
 **`@hyeonqyu/typed-router-next/check`** — a separate, Node-only entry point (it reads the
 filesystem, so it never belongs in application code): `assertRoutesMatchAppDir(routes, appDir,
 options?)`, `findRouteDrift(routes, appDir, options?)`, `RouteDriftError`, and the types
-`RouteDriftReport`, `FindRouteDriftOptions`, `RoutesLike`. Nothing here is re-exported from the main
+`RouteDriftReport`, `FindRouteDriftOptions`, `RoutesLike` — and for the Pages Router
+`assertRoutesMatchPagesDir`, `findPagesDirDrift`, `PagesDirDriftError`, `PagesDirDriftReport`,
+`FindPagesDirDriftOptions`. Nothing here is re-exported from the main
 entry, and there is no React Router equivalent — `toRouteObjects()` makes one unnecessary.
 
 The adapters re-export only a **subset** of core: `RawSearchParams`, `ParseSearchParamsOptions`,
@@ -1195,7 +1251,7 @@ among them — import those from core, or use `ReturnType<typeof routes.useTyped
 
 ## 14. Runnable examples
 
-Three apps in the repository. The first two declare the *same* tree, and their `Nav.tsx` and
+Four apps in the repository. `next-example` and `react-example` declare the *same* tree, and their `Nav.tsx` and
 `RouteInspector.tsx` are identical line for line apart from the Next copies' `'use client'`
 directive and their header comments — proof that the API is identical across adapters. Every page
 prints what the library resolved for the live URL with the runtime `typeof` beside it, so the type
@@ -1204,6 +1260,9 @@ claims are visible rather than asserted. Run `yarn workspace next-example dev` (
 `yarn workspace react-router-framework-example dev` (:5174).
 
 - `examples/next-example/src/routes.ts` — the Next.js declaration
+- `examples/next-pages-example/src/routes.ts` — the Pages Router: a tree declared with core in
+  `src/shared/routes.ts`, bound with `bindRoutes` from `-next/pages`, with `<RouterReady>` around its
+  statically optimized pages (`yarn workspace next-pages-example dev`, :3001)
 - `examples/react-example/src/routes.tsx` — the React Router declaration, `element` per node
 - `examples/react-example/src/App.tsx` — `toRouteObjects()` nested under a hand-written shell, with
   an index redirect and a `*` catch-all the tree knows nothing about

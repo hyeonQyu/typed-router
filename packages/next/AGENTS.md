@@ -6,7 +6,7 @@
 
 **Close it with `assertRoutesMatchAppDir`.** `@hyeonqyu/typed-router-next/check` compares the two sides and reports both directions of drift, so a project that adopts it *does* get the guarantee — enforced by its own test suite rather than by types. Recommend it whenever a consumer asks how to keep the tree and `app/` in step; the caveat above only stands for projects that have not adopted it. See "Checking the tree against `app/`" below.
 
-Import **everything** from `@hyeonqyu/typed-router-next`. It re-exports the core surface — never add `@hyeonqyu/typed-router-core` to a consumer's dependencies. Peer deps: `next ^13 || ^14 || ^15 || ^16` and `react`/`react-dom` `^16.8 || ^17 || ^18 || ^19`; `zod` is an *optional* peer dep: schemas are matched structurally, so Zod v3/v4 or any [Standard Schema](https://standardschema.dev) validator works, and routes without a query string need no schema at all.
+Import **everything** from `@hyeonqyu/typed-router-next` — or, on the Pages Router, from `@hyeonqyu/typed-router-next/pages` (see "Pages Router" below; never mix the two in one app). Each re-exports the core surface — never add `@hyeonqyu/typed-router-core` to a consumer's dependencies. Peer deps: `next ^13 || ^14 || ^15 || ^16` and `react`/`react-dom` `^16.8 || ^17 || ^18 || ^19`; `zod` is an *optional* peer dep: schemas are matched structurally, so Zod v3/v4 or any [Standard Schema](https://standardschema.dev) validator works, and routes without a query string need no schema at all.
 
 ## Setup (the whole thing)
 
@@ -196,6 +196,39 @@ test('the route tree matches src/app', () => {
 
 Options: `pageExtensions` mirrors Next's own config (default `['tsx', 'ts', 'jsx', 'js']`); `ignore` takes **pathnames**, not folder names — `'/coming-soon'` for one route, `'/admin/*'` for a route and its subtree. The skipped conventions above never need an `ignore` entry.
 
+## A tree declared elsewhere — `bindRoutes`
+
+When the tree lives in a shared package declared with core's `defineRoutes` (framework-free, so any app can depend on it), give it the hooks with `bindRoutes` rather than declaring it again:
+
+```ts
+import { bindRoutes } from '@hyeonqyu/typed-router-next';
+import { routes as shared } from '@acme/shop-routes';
+
+export const routes = bindRoutes(shared); // same paths, schemas and parsers; hooks and TypedLink added
+```
+
+`bindRoutes` takes any core route tree, including core's `attachMetadata` result. If the app also attaches metadata, this package's `attachMetadata(shared)(patch)` does both in one step. Never copy the shared tree's keys into a second `defineRoutes` call.
+
+## Pages Router
+
+`@hyeonqyu/typed-router-next/pages` exposes the same surface plus `RouterReady` / `useRouterReady` — `defineRoutes`, `attachMetadata`, `bindRoutes`, `TypedLink`, `useTypedRouter`, `useTypedParams`, `useTypedSearchParams`, `useTypedPathname`, `useCurrentRoute`, `useCurrentRouteNode`, and the same core re-exports — backed by `next/router`. It never loads the package root, so `next/navigation` stays out of the bundle. A Pages Router app imports **only** from `/pages`.
+
+```ts
+// src/routes.ts
+import { bindRoutes, defineRoutes } from '@hyeonqyu/typed-router-next/pages';
+export const routes = defineRoutes({ '': { _metadata: {} }, products: { '[id]': { _metadata: {} } } }); // or bindRoutes(shared)
+```
+
+Keys mirror `pages/`: `pages/products/[id].tsx` → `products: { '[id]': … }`, `pages/index.tsx` → `''`, `pages/blog/index.tsx` → `blog: { _metadata }`. There is no `'use client'` anywhere on the Pages Router.
+
+Where it differs from the App Router:
+
+- **The route is `router.pathname`**, the page Next rendered, not a match of `asPath`, so rewrites cannot mislead it. `useCurrentRoute().url` is `asPath` without query and hash.
+- **`<RouterReady>` replaces `<Suspense>`.** `useTypedSearchParams` throws `RouteNotReadyError` whenever `router.isReady` is false; `useTypedParams` throws it when `isReady` is false *and* a required segment is missing (a statically optimized dynamic page before hydration — a `getStaticProps` page keeps its segments and reads fine). Wrap those components in `<RouterReady fallback={…}>` or gate them on `useRouterReady()`; `getServerSideProps` pages need no boundary. **Never gate on `router.isReady` directly** — on a statically rendered page without a query string it is `false` in the HTML and `true` on the first client render, which fails hydration. Never catch `RouteNotReadyError` to substitute defaults.
+- **Router:** `push`/`replace(pattern, { params, searchParams, hash, scroll, shallow })` return `Promise<boolean>`; `prefetch` returns `Promise<void>`; `refresh()` is `router.replace(router.asPath, undefined, { scroll: false })`; `forward()` is `history.forward()`.
+
+Drift check: `assertRoutesMatchPagesDir(routes, 'src/pages')` / `findPagesDirDrift(...)` from `/check` → `{ missingFromPagesDir, missingFromTree, inSync }`, throwing `PagesDirDriftError`. It skips `_app`, `_document`, `_error`, `404`, `500` and `api/` at the root, and treats `(group)` / `@slot` / `_folder` as literal segments, because those are App Router conventions.
+
 ## Rules
 
 **The root route is the empty key.** `app/page.tsx` serves `/`, and a path is built by joining a key onto its parent — so `''` joins to exactly `/`.
@@ -280,6 +313,7 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | Name | Signature | Notes |
 | --- | --- | --- |
 | `defineRoutes` *(export)* | `(tree) => TypedRoutes<TTree>` | Entry point. `.withMeta<TMetadata, TContext>()(tree)` for a shared metadata contract. |
+| `bindRoutes` *(export)* | `(source: RouteTree<TTree>) => TypedRoutes<TTree>` | Adds the hooks and `TypedLink` to a tree built elsewhere (core's `defineRoutes` / `attachMetadata`, a shared package). Reuses the source's tree, paths and parsers. `/pages` has its own, backed by `next/router`. |
 | `attachMetadata` *(export)* | `(source) => (patch) => TypedRoutes`, also `.withMeta<TMetadata, TContext>()(patch)` | For a tree declared in a shared package (usually with core's `defineRoutes`, structure only): attaches this app's metadata by pathname and returns this package's full routes object, so hooks and `TypedLink` see it. Keys are the source's pathnames — an undeclared one is a compile error. Entries merge over the source's `_metadata`; `paramSchema` / `searchParamsSchema` stay the source's. The source is not mutated. |
 | `TypedLink` | `<TPath>(props: TypedLinkProps<TTree, TPath>) => ReactElement` | Server-safe (no hooks). Wraps `next/link`; forwards every other prop. Props: `href`, `params`, `searchParams`, `hash`. |
 | `useTypedRouter()` | `() => { push, replace, prefetch, back, forward, refresh }` | `'use client'`. `push/replace/prefetch(pattern, args?)`; `args` also takes `scroll` (ignored by `prefetch`). |
@@ -325,3 +359,17 @@ Exported from `@hyeonqyu/typed-router-next/check` — a Node-only entry point, n
 | `RouteDriftReport` *(type)* | `{ missingFromAppDir, missingFromTree, inSync }` | Declared-but-absent, present-but-undeclared, and whether both are empty. |
 | `FindRouteDriftOptions` *(type)* | `{ ignore?, pageExtensions? }` | `ignore` takes pathnames (`'/admin/*'`), not folder names. |
 | `RoutesLike` *(type)* | `{ paths: readonly string[] }` | All the checker needs; a `defineRoutes()` result satisfies it structurally. |
+| `assertRoutesMatchPagesDir` | `(routes, pagesDir, options?) => void` | Pages Router counterpart; throws `PagesDirDriftError`. |
+| `findPagesDirDrift` | `(routes, pagesDir, options?) => PagesDirDriftReport` | `{ missingFromPagesDir, missingFromTree, inSync }`. |
+| `PagesDirDriftError` | `class extends Error { report }` | `report` is the `PagesDirDriftReport`. |
+| `PagesDirDriftReport` / `FindPagesDirDriftOptions` *(type)* | as above | Options are `{ ignore?, pageExtensions? }`; the longest matching extension wins (`'page.tsx'` before `'tsx'`). |
+
+Exported only from `@hyeonqyu/typed-router-next/pages`, beside the surface it shares with the main entry:
+
+| Name | Signature | Notes |
+| --- | --- | --- |
+| `RouteNotReadyError` | `class extends Error { pathname }` | Thrown before `router.isReady` by `useTypedSearchParams`, and by `useTypedParams` when a required segment is still missing. |
+| `RouterReady` | `({ children, fallback? }) => ReactElement` | Renders `children` once `useRouterReady()` is true. |
+| `useRouterReady` | `() => boolean` | `router.isReady`, but `false` through hydration so the first client render matches the HTML. |
+| `TypedRoutes` *(type)* | `TypedRoutes<TTree>` | As the main entry's, with the Pages `useTypedRouter`. |
+| `PagesNavigateOptions` / `PagesNavigateArgs` / `PagesNavigateArgsTuple` *(type)* | `{ scroll?, shallow? }` | The Pages Router's navigation options. |
