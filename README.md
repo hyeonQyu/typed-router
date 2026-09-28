@@ -222,6 +222,38 @@ It returns an object rather than an array, so `keys`, `values` and `entries` all
 
 The tree itself is untouched — `_metadata` stays an ordinary enumerable property, so a node still survives a spread, a `structuredClone` and a `toEqual`. Calling `children()` twice on the same node of a declared tree returns the same frozen object, so the result can sit in a dependency array without re-rendering.
 
+### Sharing a tree between apps
+
+In a monorepo, app A links into app B, and those links should type-check like any in-app link. What A needs from B is the structure: pathnames, dynamic segments, their schemas. What A must not receive is B's metadata: its translation-key types, its assets, its lazily loaded pages. So declare the structure once, in a shared package, and let the owning app attach its metadata by pathname:
+
+```ts
+// shared package — structure only, so any app can depend on it
+export const accountRoutes = defineRoutes({
+  info:     { _metadata: {} },
+  activity: { _metadata: {}, quest: { _metadata: {} } },
+});
+
+// the owning app
+import { attachMetadata } from '@hyeonqyu/typed-router-react'; // or -next, or -core
+
+export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+  '/info':           { title: 'GNB_USER_INFO', element: <UserInfo /> },
+  '/activity':       { title: 'GNB_MY_ACTIVITY' },
+  '/activity/quest': { title: 'GNB_MY_QUESTS' },
+});
+
+routes.getMetadata('/info').title;  // 'GNB_USER_INFO' — the literal, as with withMeta
+routes.paths;                       // exactly accountRoutes.paths
+```
+
+- **The keys are the shared tree's pathnames.** One it does not declare is a compile error, so removing a route from the shared tree breaks every app still attaching metadata to it — the check the second copy of the tree never had.
+- **The result is a route tree like any other.** `getMetadata`, `match`, `collected`, `children()`, the hooks and — in React — `toRouteObjects` all read the attached metadata.
+- **Each entry is merged over the shared `_metadata`.** A route you leave out keeps the shared one. `paramSchema` and `searchParamsSchema` are part of the shared contract, so they always come from the shared tree and cannot be set here.
+- **The shared tree is not mutated.** Any number of apps can attach their own metadata to it.
+- `.withMeta<Contract, Context>()` enforces the contract on every entry, as it does on a declared tree; without it each entry is inferred per route.
+
+Each attached tree is walked once more by the compiler, which costs about one level of nesting: the full `collected` union of an attached tree compiles to 29 levels deep, where a declared one reaches 31.
+
 ## Framework-agnostic use
 
 The route tree is plain data. `@hyeonqyu/typed-router-core` exposes the same declaration with no React dependency at all — for scripts, tests, or a sitemap generator — and the `routes` object from either framework package carries these same methods alongside its hooks:

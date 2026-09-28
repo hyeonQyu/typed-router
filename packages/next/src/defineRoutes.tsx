@@ -1,5 +1,10 @@
 import {
   createRouteTree,
+  mergeRouteMetadata,
+  type AttachedTree,
+  type MetadataPatch,
+  type MetadataPatchWithMeta,
+  type OnlyRoutePaths,
   type ParsePathParamsOptions,
   type ParseSearchParamsOptions,
   type PathParamsOutput,
@@ -114,3 +119,32 @@ export const defineRoutes = Object.assign(<const TTree extends RouteTreeInput>(t
     <const TTree extends RouteTreeInputWithMeta<TMetadata, TContext>>(tree: TTree): TypedRoutes<TTree> =>
       create(tree),
 });
+
+/**
+ * Attaches metadata to a tree declared elsewhere — typically a shared package that
+ * declares only the structure — by pathname, and returns the full adapter on the result,
+ * so the hooks and `TypedLink` see it like any other.
+ *
+ * ```ts
+ * export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+ *   '/info': { title: 'GNB_USER_INFO' },
+ * });
+ * ```
+ *
+ * Keys are the source's pathnames. Each entry is merged over the source's `_metadata`;
+ * routes left out keep theirs, and `paramSchema` / `searchParamsSchema` stay the
+ * source's. The source is not mutated.
+ */
+export const attachMetadata = <TTree,>(source: { routes: TTree }) =>
+  Object.assign(
+    <const TPatch extends MetadataPatch<TTree>>(patch: TPatch & OnlyRoutePaths<TTree, TPatch>): TypedRoutes<AttachedTree<TTree, TPatch>> =>
+      create<AttachedTree<TTree, TPatch>>(mergeRouteMetadata<TTree, TPatch>(source.routes, patch)),
+    {
+      withMeta:
+        <TMetadata extends RouteMetadata, TContext = unknown>() =>
+        <const TPatch extends MetadataPatchWithMeta<TTree, TMetadata, TContext>>(
+          patch: TPatch & OnlyRoutePaths<TTree, TPatch>,
+        ): TypedRoutes<AttachedTree<TTree, TPatch>> =>
+          create<AttachedTree<TTree, TPatch>>(mergeRouteMetadata<TTree, TPatch>(source.routes, patch)),
+    },
+  );

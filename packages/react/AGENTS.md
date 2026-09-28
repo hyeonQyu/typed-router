@@ -255,6 +255,7 @@ resolveMetadata(routes.getMetadata('/dashboard'), { locale: 'ko', isAdmin: true 
 | --- | --- | --- |
 | `defineRoutes` | `(tree) => TypedRoutes<TTree>` | Entry point. Declares the tree, returns hooks + components + router config. |
 | `defineRoutes.withMeta` | `<TMetadata, TContext>() => (tree) => TypedRoutes<TTree>` | Curried variant enforcing a shared `_metadata` contract. |
+| `attachMetadata` | `(source) => (patch) => TypedRoutes`, also `.withMeta<TMetadata, TContext>()(patch)` | For a tree declared in a shared package (usually with core's `defineRoutes`, structure only): attaches this app's metadata by pathname and returns this package's full routes object, so hooks, `TypedLink` and `toRouteObjects` (and so the attached `element` / `lazy`) all see it. Keys are the source's pathnames — an undeclared one is a compile error. Entries merge over the source's `_metadata`; `paramSchema` / `searchParamsSchema` stay the source's. The source is not mutated. |
 | `routes.toRouteObjects` | `() => RouteObject[]` | Generates React Router's config from the tree. |
 | `routes.TypedRoutes` | `() => ReactElement \| null` | `useRoutes(toRouteObjects())`, for use inside `<BrowserRouter>`. |
 | `routes.TypedLink` | `(props: TypedLinkProps<TTree, TPath>) => ReactElement` | `Link` taking `href` + `params` / `searchParams` / `hash`. |

@@ -8,7 +8,8 @@
  * What is under test is everything the adapter does *with* those values, which is where
  * all of its own logic lives.
  */
-import { defineRoutes } from '@hyeonqyu/typed-router-next';
+import { defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
+import { attachMetadata, defineRoutes } from '@hyeonqyu/typed-router-next';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -126,6 +127,22 @@ describe('useCurrentRoute and useTypedPathname', () => {
 
     at('/', <Probe />);
     expect(out()).toBe('/');
+  });
+});
+
+describe('attachMetadata', () => {
+  test('the hooks read the attached metadata and the shared schemas together', () => {
+    /** Declared with core, as a shared package would. */
+    const shared = defineCoreRoutes({ orders: { '[id]': { _metadata: { paramSchema: z.number() } } } });
+    const app = attachMetadata(shared)({ '/orders/[id]': { title: 'Order' } });
+
+    const Probe = () => {
+      const current = app.useCurrentRoute();
+      return <Show value={{ title: current.metadata?.title, params: app.useTypedParams('/orders/[id]') }} />;
+    };
+
+    at('/orders/7', <Probe />);
+    expect(out()).toEqual({ title: 'Order', params: { id: 7 } });
   });
 });
 

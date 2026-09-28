@@ -1,5 +1,13 @@
+export {
+  mergeRouteMetadata,
+  type AttachedTree,
+  type MetadataPatch,
+  type MetadataPatchWithMeta,
+  type OnlyRoutePaths,
+} from './attachMetadata';
 export { createRouteTree, resolveMetadata, resolveMetadataValue, type RouteTree } from './createRouteTree';
 export {
+  attachMetadata,
   defineRoutes,
   type CollectedRouteOf,
   type Params,

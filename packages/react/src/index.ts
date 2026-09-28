@@ -1,4 +1,4 @@
-export { defineRoutes, type CurrentRoute, type TypedRouter, type TypedRoutes } from './defineRoutes';
+export { attachMetadata, defineRoutes, type CurrentRoute, type TypedRouter, type TypedRoutes } from './defineRoutes';
 export type { NavigateArgs, NavigateArgsTuple, NavigateOptions } from './navigation.types';
 export { toReactRouterSegment, toRouteObjects } from './toRouteObjects';
 export type { TypedLinkProps } from './TypedLink';
@@ -18,8 +18,11 @@ export {
   resolveMetadataValue,
   toSearchParamsString,
   type AnySchema,
+  type AttachedTree,
   type BuiltinMetadata,
   type CollectedRouteOf,
+  type MetadataPatch,
+  type MetadataPatchWithMeta,
   type MetadataValue,
   type Params,
   type PathParamSchemas,
