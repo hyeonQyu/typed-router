@@ -1,4 +1,6 @@
-import { defineRoutes as defineNextRoutes } from '@hyeonqyu/typed-router-next';
+import { attachMetadata as attachCoreMetadata, defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
+import { bindRoutes as bindNextRoutes, defineRoutes as defineNextRoutes } from '@hyeonqyu/typed-router-next';
+import { bindRoutes as bindPagesRoutes, defineRoutes as definePagesRoutes } from '@hyeonqyu/typed-router-next/pages';
 import { defineRoutes as defineReactRoutes } from '@hyeonqyu/typed-router-react';
 import { z } from 'zod';
 
@@ -28,10 +30,11 @@ const tree = {
 } as const;
 
 const nextRoutes = defineNextRoutes(tree);
+const pagesRoutes = definePagesRoutes(tree);
 const reactRoutes = defineReactRoutes(tree);
 
 /** One component body, written once, type-checked against each adapter in turn. */
-const useSharedBody = (routes: typeof nextRoutes | typeof reactRoutes) => {
+const useSharedBody = (routes: typeof nextRoutes | typeof pagesRoutes | typeof reactRoutes) => {
   const router = routes.useTypedRouter();
   const pathname = routes.useTypedPathname();
   const node = routes.useCurrentRouteNode();
@@ -59,6 +62,21 @@ const useSharedBody = (routes: typeof nextRoutes | typeof reactRoutes) => {
 
 const NextNav = () => {
   const { TypedLink } = nextRoutes;
+  return (
+    <nav>
+      <TypedLink href="/home">Home</TypedLink>
+      <TypedLink href="/products/[id]" params={{ id: 1 }}>
+        Detail
+      </TypedLink>
+      <TypedLink href="/search" searchParams={{ q: 'shoes' }} hash="top">
+        Search
+      </TypedLink>
+    </nav>
+  );
+};
+
+const PagesNav = () => {
+  const { TypedLink } = pagesRoutes;
   return (
     <nav>
       <TypedLink href="/home">Home</TypedLink>
@@ -103,6 +121,55 @@ const NextInvalid = () => {
   return <nextRoutes.TypedLink to="/home">x</nextRoutes.TypedLink>;
 };
 
+const PagesInvalid = () => {
+  const router = pagesRoutes.useTypedRouter();
+  // @ts-expect-error — `[id]` declares `z.number()`, so a string is not a valid link
+  router.push('/products/[id]', { params: { id: 'abc' } });
+  // @ts-expect-error — dynamic route needs params
+  router.push('/products/[id]');
+  // @ts-expect-error — `/home` declares no schema
+  router.push('/home', { searchParams: { q: 'x' } });
+  // @ts-expect-error — `q` is required
+  router.push('/search', { searchParams: {} });
+  // @ts-expect-error — `to` is not the prop name here either
+  return <pagesRoutes.TypedLink to="/home">x</pagesRoutes.TypedLink>;
+};
+
+/** `shallow` belongs to the Pages Router alone; the App Router's router has no such option. */
+const shallowOnPagesOnly = () => {
+  void pagesRoutes.useTypedRouter().push('/products/[id]', { params: { id: 1 }, shallow: true, scroll: false });
+  // @ts-expect-error — the App Router has no shallow routing
+  nextRoutes.useTypedRouter().push('/home', { shallow: true });
+};
+
+/*
+ * `bindRoutes` on a tree declared with core must be indistinguishable, at every call
+ * site, from declaring the same tree with the adapter — on both Next entries.
+ */
+const coreRoutes = defineCoreRoutes(tree);
+const boundNext = bindNextRoutes(coreRoutes);
+const boundPages = bindPagesRoutes(coreRoutes);
+
+const useBoundBody = () => {
+  const nextId: number = boundNext.useTypedParams('/products/[id]').id;
+  const pagesId: number = boundPages.useTypedParams('/products/[id]').id;
+  const page: number = boundPages.useTypedSearchParams('/products').page;
+  const same: typeof pagesRoutes.$types.pathname = boundPages.useTypedPathname() ?? '/home';
+
+  boundPages.useTypedRouter().push('/search', { searchParams: { q: 'x' } });
+  // @ts-expect-error — the bound tree is still checked: `q` is required
+  boundNext.useTypedRouter().push('/search');
+
+  return { nextId, pagesId, page, same };
+};
+
+/** A tree that went through core's `attachMetadata` binds the same way, attached metadata included. */
+const attached = attachCoreMetadata(coreRoutes).withMeta<{ title: string; icon: 'home' | 'cart' }>()({
+  '/home': { title: 'Home', icon: 'home' },
+});
+const boundAttached = bindPagesRoutes(attached);
+const icon: 'home' | 'cart' = boundAttached.getMetadata('/home').icon;
+
 const ReactInvalid = () => {
   const router = reactRoutes.useTypedRouter();
   // @ts-expect-error — `[id]` declares `z.number()`, so a string is not a valid link
@@ -121,4 +188,17 @@ const ReactInvalid = () => {
 const routeObjects = reactRoutes.toRouteObjects();
 const composed = [{ path: '/', children: routeObjects }, ...routeObjects];
 
-export { composed, NextInvalid, NextNav, ReactInvalid, ReactNav, routeObjects, useSharedBody };
+export {
+  composed,
+  icon,
+  NextInvalid,
+  NextNav,
+  PagesInvalid,
+  PagesNav,
+  ReactInvalid,
+  ReactNav,
+  routeObjects,
+  shallowOnPagesOnly,
+  useBoundBody,
+  useSharedBody,
+};

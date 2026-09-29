@@ -1,6 +1,16 @@
-export { attachMetadata, bindRoutes, defineRoutes, type CurrentRoute, type TypedRoutes } from './defineRoutes';
-export type { NavigateArgs, NavigateArgsTuple, NavigateOptions } from './navigation.types';
-export type { TypedLinkProps } from './TypedLink';
+/**
+ * `@hyeonqyu/typed-router-next/pages` — the Pages Router entry, backed by `next/router`.
+ *
+ * Everything a Pages Router app needs is exported from here, so it never has to import
+ * the package root, whose hooks sit on `next/navigation`.
+ */
+export type { CurrentRoute } from '../defineRoutes';
+export type { NavigateOptions } from '../navigation.types';
+export type { TypedLinkProps } from '../TypedLink';
+export { attachMetadata, bindRoutes, defineRoutes, type TypedRoutes } from './defineRoutes';
+export { RouteNotReadyError } from './hooks';
+export type { PagesNavigateArgs, PagesNavigateArgsTuple, PagesNavigateOptions } from './navigation.types';
+export { RouterReady, useRouterReady } from './ready';
 
 export {
   METADATA_KEY,

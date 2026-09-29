@@ -1,7 +1,7 @@
 {
   "name": "@hyeonqyu/typed-router-next",
   "version": "2.2.0",
-  "description": "Type-safe routing for Next.js App Router: one route tree, typed pathnames, params and search params",
+  "description": "Type-safe routing for Next.js App Router and Pages Router: one route tree, typed pathnames, params and search params",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
   "repository": {
@@ -29,6 +29,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./pages": {
+      "types": "./dist/pages.d.ts",
+      "import": "./dist/pages.mjs",
+      "require": "./dist/pages.js"
     },
     "./check": {
       "types": "./dist/check.d.ts",

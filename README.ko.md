@@ -9,7 +9,7 @@
 typed-router는 라우트 맵 전체를 타입이 있는 객체 하나로 만듭니다. 한 번만 선언하면 pathname, 경로 파라미터, 쿼리 파라미터의 타입, 네비게이션, (React Router의 경우) 라우터 설정 자체까지 — 전부 그 선언 하나에서 파생되고 컴파일러가 검증합니다.
 
 ```bash
-npm install @hyeonqyu/typed-router-next zod   # Next.js App Router
+npm install @hyeonqyu/typed-router-next zod   # Next.js App Router 또는 Pages Router
 npm install @hyeonqyu/typed-router-react zod  # React Router
 ```
 
@@ -17,7 +17,7 @@ npm install @hyeonqyu/typed-router-react zod  # React Router
 
 **이미 쓸 스택이 정해져 있다면?** 각 가이드는 독립적으로 완결됩니다. 여러분 것만 읽으세요:
 
-- **[Next.js App Router →](./packages/next/README.ko.md)**
+- **[Next.js App Router →](./packages/next/README.ko.md)** · [Pages Router →](./packages/next/README.ko.md#9-pages-router)
 - **[React Router →](./packages/react/README.ko.md)**
 
 이 페이지의 나머지는 두 가이드가 공통으로 딛고 있는 개념을 설명합니다.
@@ -253,6 +253,8 @@ routes.paths;                       // accountRoutes.paths와 정확히 같다
 
 붙인 트리는 컴파일러가 한 번 더 훑기 때문에 중첩 한 단계쯤의 비용이 듭니다. 선언한 트리의 `collected` 유니언은 31단계까지 컴파일되지만, 붙인 트리는 29단계까지입니다.
 
+공유 트리의 훅만 필요하고 붙일 메타데이터가 없는 앱이라면 바인딩만 하면 됩니다. `-next`의 `bindRoutes(accountRoutes)`(Pages Router에서는 `-next/pages`의 것)는 복사나 패치 없이 트리를 그대로 두고 어댑터만 얹어 돌려줍니다.
+
 ## 프레임워크 독립적인 사용
 
 라우트 트리는 순수한 데이터입니다. `@hyeonqyu/typed-router-core`는 React 의존성이 전혀 없는 동일한 선언 방식을 제공합니다 — 스크립트, 테스트, sitemap 생성기 같은 곳에서요. 그리고 각 프레임워크 패키지에서 얻는 `routes` 객체도 훅들과 함께 이 메서드들을 똑같이 가지고 있습니다.
@@ -287,14 +289,14 @@ test('라우트 트리가 src/app과 일치한다', () => {
 });
 ```
 
-양방향을 모두 보고합니다 — 페이지가 지워진 선언된 라우트, 그리고 트리가 선언한 적 없는 페이지. Next의 컨벤션을 Next와 똑같이 읽습니다: `(group)`과 `@slot` 폴더는 URL 세그먼트를 만들지 않지만 그 아래 페이지는 그대로 라우트로 세고, `(.)` 인터셉트·`_folder`·`route.ts`·`default.tsx`는 자기 pathname이 아예 없습니다. 파일시스템을 읽으므로 별도 엔트리포인트에 있고 브라우저 번들에는 들어가지 않습니다. [자세한 내용은 Next 가이드](./packages/next/README.ko.md#7-트리와-srcapp-어긋남-잡기).
+양방향을 모두 보고합니다 — 페이지가 지워진 선언된 라우트, 그리고 트리가 선언한 적 없는 페이지. Next의 컨벤션을 Next와 똑같이 읽습니다: `(group)`과 `@slot` 폴더는 URL 세그먼트를 만들지 않지만 그 아래 페이지는 그대로 라우트로 세고, `(.)` 인터셉트·`_folder`·`route.ts`·`default.tsx`는 자기 pathname이 아예 없습니다. 파일시스템을 읽으므로 별도 엔트리포인트에 있고 브라우저 번들에는 들어가지 않습니다. [자세한 내용은 Next 가이드](./packages/next/README.ko.md#7-트리와-srcapp-어긋남-잡기). Pages Router에서는 `assertRoutesMatchPagesDir(routes, 'src/pages')`가 `pages/`에 대해 같은 검사를 합니다.
 
 ## 패키지 구성
 
 | 패키지 | 용도 |
 | --- | --- |
 | `@hyeonqyu/typed-router-core` | 트리, 타입, URL 헬퍼 — 프레임워크 독립적 |
-| [`@hyeonqyu/typed-router-next`](./packages/next/README.ko.md) | Next.js App Router |
+| [`@hyeonqyu/typed-router-next`](./packages/next/README.ko.md) | Next.js App Router, 그리고 `/pages`로 Pages Router |
 | [`@hyeonqyu/typed-router-react`](./packages/react/README.ko.md) | React Router 6/7 라이브러리 모드 |
 
 ### React Router 7 framework mode

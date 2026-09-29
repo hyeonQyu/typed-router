@@ -9,7 +9,7 @@ Route paths and search params are usually just strings — the compiler cannot t
 typed-router turns your route map into a single typed object. You declare it once; pathnames, path params, search-param types, navigation, and (for React Router) the router configuration itself are all derived from that one declaration and checked by the compiler.
 
 ```bash
-npm install @hyeonqyu/typed-router-next zod   # Next.js App Router
+npm install @hyeonqyu/typed-router-next zod   # Next.js App Router or Pages Router
 npm install @hyeonqyu/typed-router-react zod  # React Router
 ```
 
@@ -17,7 +17,7 @@ npm install @hyeonqyu/typed-router-react zod  # React Router
 
 **Already know your stack?** Each guide is self-contained — read only yours:
 
-- **[Next.js App Router →](./packages/next/README.md)**
+- **[Next.js App Router →](./packages/next/README.md)** · [Pages Router →](./packages/next/README.md#9-the-pages-router)
 - **[React Router →](./packages/react/README.md)**
 
 The rest of this page explains the ideas both guides build on.
@@ -254,6 +254,8 @@ routes.paths;                       // exactly accountRoutes.paths
 
 Each attached tree is walked once more by the compiler, which costs about one level of nesting: the full `collected` union of an attached tree compiles to 29 levels deep, where a declared one reaches 31.
 
+An app that needs the shared tree's hooks but none of its own metadata binds it instead: `bindRoutes(accountRoutes)` from `-next`, or from `-next/pages` on the Pages Router, returns the adapter on the tree as it is, with no copy and no patch.
+
 ## Framework-agnostic use
 
 The route tree is plain data. `@hyeonqyu/typed-router-core` exposes the same declaration with no React dependency at all — for scripts, tests, or a sitemap generator — and the `routes` object from either framework package carries these same methods alongside its hooks:
@@ -288,14 +290,14 @@ test('the route tree matches src/app', () => {
 });
 ```
 
-It reports both directions — a declared route whose page was deleted, and a page the tree never declared — and reads Next's conventions the way Next does: `(group)` and `@slot` folders add no URL segment while pages under them still count, and `(.)` intercepts, `_folder`, `route.ts` and `default.tsx` address no pathname at all. It reads the filesystem, so it lives on its own entry point and never reaches your browser bundle. [Details in the Next guide](./packages/next/README.md#7-keep-the-tree-and-srcapp-in-step).
+It reports both directions — a declared route whose page was deleted, and a page the tree never declared — and reads Next's conventions the way Next does: `(group)` and `@slot` folders add no URL segment while pages under them still count, and `(.)` intercepts, `_folder`, `route.ts` and `default.tsx` address no pathname at all. It reads the filesystem, so it lives on its own entry point and never reaches your browser bundle. [Details in the Next guide](./packages/next/README.md#7-keep-the-tree-and-srcapp-in-step). On the Pages Router, `assertRoutesMatchPagesDir(routes, 'src/pages')` does the same for `pages/`.
 
 ## Packages
 
 | package | for |
 | --- | --- |
 | [`@hyeonqyu/typed-router-core`](./packages/core/README.md) | the tree, types and URL helpers — framework-free |
-| [`@hyeonqyu/typed-router-next`](./packages/next/README.md) | Next.js App Router |
+| [`@hyeonqyu/typed-router-next`](./packages/next/README.md) | Next.js App Router, and the Pages Router via `/pages` |
 | [`@hyeonqyu/typed-router-react`](./packages/react/README.md) | React Router 6/7 library mode |
 
 ### React Router 7 framework mode
