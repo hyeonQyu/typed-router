@@ -1,6 +1,6 @@
 {
   "name": "@hyeonqyu/typed-router-react",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Type-safe routing for React Router: one route tree, typed pathnames, params, search params and generated router config",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
