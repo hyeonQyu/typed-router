@@ -1,6 +1,6 @@
 {
   "name": "@hyeonqyu/typed-router-core",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Framework-agnostic core for typed-router: declare your route tree once, derive pathnames, params and search-param types from it",
   "author": "hyeonQyu <dhk0561@naver.com>",
   "license": "MIT",
