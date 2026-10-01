@@ -26,6 +26,7 @@ export {
   parseSearchParams,
   resolveMetadata,
   resolveMetadataValue,
+  searchParamKeys,
   toSearchParamsString,
   type AnySchema,
   type AttachedTree,
@@ -48,6 +49,7 @@ export {
   type RouteMetadataOf,
   type RouteNodeOf,
   type RoutePaths,
+  type SearchParamKeysSchema,
   type SearchParams,
   type SearchParamsErrorMode,
 } from '@hyeonqyu/typed-router-core';

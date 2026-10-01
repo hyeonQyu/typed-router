@@ -13,7 +13,7 @@ npm install @hyeonqyu/typed-router-next zod   # Next.js App Router or Pages Rout
 npm install @hyeonqyu/typed-router-react zod  # React Router
 ```
 
-`zod` is optional — only routes that declare a search-param schema need it, and any [Standard Schema](https://standardschema.dev) validator works too.
+`zod` is optional — only routes that validate their search params need it, any [Standard Schema](https://standardschema.dev) validator works too, and a route that only names its keys needs none ([`searchParamKeys`](#naming-keys-without-a-validator)).
 
 **Already know your stack?** Each guide is self-contained — read only yours:
 
@@ -103,6 +103,23 @@ router.push('/products', { params: { id: 1 } });                // ❌ no dynami
 ```
 
 Path params (`params`) and search params (`searchParams`) are always separate arguments, so it's never ambiguous which one fills the URL and which one fills the query string.
+
+### Naming keys without a validator
+
+Plenty of routes take a few query keys and pass them straight through — the point of declaring them is the names, not validation. `searchParamKeys` declares exactly that, with no schema library:
+
+```ts
+import { defineRoutes, searchParamKeys } from '@hyeonqyu/typed-router-core';
+
+export const routes = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl'>() } },
+});
+
+routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); // '/warning?redirectUrl=%2Fjoin%3Fa%3D1'
+routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ unknown key
+```
+
+Every key is optional and each value is `string | string[]` — the shape a raw query already has. Nothing is coerced, defaulted or rejected, so reading the query back returns the raw values and the helper is safe on any route. It is a plain Standard Schema, so moving to a real one later is a one-line change. The keys go in the type argument; `searchParamKeys()` without one is a compile error rather than a schema that quietly accepts any key.
 
 ## Reading params back
 

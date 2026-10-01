@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { assertRouteMatches, attachMetadata, children, defineRoutes, isSameOrAncestorRoute } from '@hyeonqyu/typed-router-core';
+import { assertRouteMatches, attachMetadata, children, defineRoutes, isSameOrAncestorRoute, searchParamKeys } from '@hyeonqyu/typed-router-core';
 import { toRouteObjects } from '@hyeonqyu/typed-router-react';
 
 const routes = defineRoutes({
@@ -659,4 +659,35 @@ test('attachMetadata refuses structural fields, and an undefined one cannot blan
   const ia = attachMetadata(shared)({ '/products/[id]': { title: 'Product', paramSchema: undefined } });
   assert.equal(ia.getMetadata('/products/[id]').paramSchema, productId);
   assert.ok(!('searchParamsSchema' in attachMetadata(shared)({ '/info': { searchParamsSchema: undefined } }).getMetadata('/info')));
+});
+
+/* ── searchParamKeys() ───────────────────────────────────────────────────── */
+
+const keyed = defineRoutes({
+  warning: { _metadata: { title: 'Warning', searchParamsSchema: searchParamKeys() } },
+});
+
+test('searchParamKeys writes declared keys like any other search param', () => {
+  assert.equal(keyed.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }), '/warning?redirectUrl=%2Fjoin%3Fa%3D1');
+  assert.equal(keyed.buildHref('/warning', { searchParams: { from: ['a', 'b'] } }), '/warning?from=a&from=b');
+});
+
+test('searchParamKeys reads the raw query back without coercing anything', () => {
+  assert.deepEqual(keyed.parseSearchParams('/warning', { redirectUrl: '/join', page: '2', flag: 'true', list: ['1', '2'] }), {
+    redirectUrl: '/join',
+    page: '2',
+    flag: 'true',
+    list: ['1', '2'],
+  });
+  assert.deepEqual(keyed.parseSearchParams('/warning', {}), {});
+});
+
+test('searchParamKeys is a synchronous Standard Schema that never reports issues', () => {
+  const standard = searchParamKeys()['~standard'];
+  const value = { a: 'b' };
+
+  assert.equal(standard.version, 1);
+  assert.equal(standard.vendor, 'typed-router');
+  assert.deepEqual(standard.validate(value), { value });
+  assert.ok(Object.isFrozen(searchParamKeys()));
 });
