@@ -178,6 +178,36 @@ export const { TypedLink, useTypedRouter, useTypedParams, useTypedSearchParams, 
 
 core의 `attachMetadata`를 거친 트리를 포함해 어떤 core 라우트 트리든 받을 수 있고, 경로 목록과 파서는 다시 만들지 않고 그대로 씁니다. 앱에서 메타데이터도 붙여야 한다면 이 패키지의 `attachMetadata` 하나로 두 단계를 같이 처리할 수 있습니다.
 
+### 다른 곳에 있는 라우트 — `useResolveHref`
+
+메뉴, 브레드크럼, 접근 규칙이 트리에서 만들어지기 때문에 트리에 있어야 하지만, 실제로는 다른 곳에서 서비스되는 항목이 있습니다. 다른 도메인의 블로그나 고객지원 포털 같은 것들입니다. `bindRoutes`에 `useResolveHref` 훅을 넘기면 `push`, `replace`, `prefetch`, `TypedLink`가 라우트 자신의 href를 만들기 전에 이 resolver에 먼저 묻습니다.
+
+```ts
+// routes.ts
+import { attachMetadata } from '@hyeonqyu/typed-router-core';
+import { bindRoutes } from '@hyeonqyu/typed-router-next';
+import { useCallback } from 'react';
+import { routes as shared } from '@acme/shop-routes';
+import { useLocale } from './locale';
+
+const linked = attachMetadata(shared).withMeta<{ href?: (context: { language: string }) => string }>()({
+  '/blog': { href: ({ language }) => `https://blog.example.com/${language}` },
+});
+
+export const routes = bindRoutes(linked, {
+  useResolveHref: () => {
+    const { language } = useLocale();
+    return useCallback(({ metadata }) => (typeof metadata.href === 'function' ? metadata.href({ language }) : undefined), [language]);
+  },
+});
+```
+
+- resolver는 `{ pathname, metadata, params, searchParams, hash }`를 받습니다. URL을 반환하면 그곳으로 가고, `undefined`를 반환하면 라우트 자신의 href를 씁니다. 라이브러리는 어떤 메타데이터 키에도 의미를 두지 않습니다. 위의 `href`는 앱이 정한 필드입니다.
+- 절대 URL이라고 따로 처리할 것은 없습니다. `push`는 그 주소로 하드 네비게이션하고, `TypedLink`는 일반 앵커를 렌더하며, `prefetch`는 건너뜁니다.
+- 훅이므로 resolver가 로케일 같은 컨텍스트에 의존할 수 있습니다. 렌더마다 같은 함수를 반환하세요(`useCallback`). 함수가 바뀌면 `useTypedRouter`가 새 router 객체를 내줍니다.
+- 옵션을 넘기면 `TypedLink`도 이 훅을 실행하므로 클라이언트 컴포넌트에서 렌더해야 합니다. 옵션을 넘기지 않으면 아무것도 달라지지 않습니다.
+- `/pages`의 `bindRoutes`도 같은 옵션을 받습니다. 경로 동기화 검사에는 이 라우트가 여전히 잡히므로 `ignore`에 넣으세요.
+
 ## 9. Pages Router
 
 `@hyeonqyu/typed-router-next/pages`는 같은 API를 `next/router` 위에 구현한 엔트리입니다. `defineRoutes`, `attachMetadata`, `bindRoutes`, 인자까지 같은 훅들, `TypedLink`, 같은 재수출을 제공하니 전부 여기서 import하세요. 이 엔트리는 패키지 루트를 로드하지 않기 때문에 Pages Router 번들에 `next/navigation`이 들어오지 않습니다.

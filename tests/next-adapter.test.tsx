@@ -8,10 +8,10 @@
  * What is under test is everything the adapter does *with* those values, which is where
  * all of its own logic lives.
  */
-import { defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
-import { attachMetadata, bindRoutes, defineRoutes } from '@hyeonqyu/typed-router-next';
+import { attachMetadata as attachCoreMetadata, defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
+import { attachMetadata, bindRoutes, defineRoutes, type RouteMetadata } from '@hyeonqyu/typed-router-next';
 import { cleanup, render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { z } from 'zod';
 import { router, setLocation } from './stubs/next-navigation';
@@ -212,5 +212,103 @@ describe('TypedLink', () => {
     );
 
     expect(screen.getByRole('link', { name: 'list' }).getAttribute('href')).toBe('/products?page=2#top');
+  });
+});
+
+describe('useResolveHref', () => {
+  const Language = createContext('en');
+
+  // A tree whose `/blog` lives on another domain, as a shared package plus an app's metadata would declare it.
+  const linked = bindRoutes(
+    attachCoreMetadata(
+      defineCoreRoutes({ home: { _metadata: {} }, blog: { _metadata: {} }, products: { '[id]': { _metadata: {} } } }),
+    ).withMeta<{ href?: (context: { language: string }) => string }>()({
+      '/blog': { href: ({ language }) => `https://blog.example.com/${language}` },
+    }),
+    {
+      useResolveHref: () => {
+        const language = useContext(Language);
+        return useCallback(
+          ({ metadata }: { metadata: RouteMetadata }) =>
+            (metadata.href as ((c: { language: string }) => string) | undefined)?.({ language }),
+          [language],
+        );
+      },
+    },
+  );
+
+  test('push, replace and TypedLink go where the resolver says, reading React context to decide', () => {
+    const { TypedLink } = linked;
+    const Probe = () => {
+      const typed = linked.useTypedRouter();
+      typed.push('/blog');
+      typed.replace('/blog', { scroll: false });
+      return <TypedLink href="/blog">blog</TypedLink>;
+    };
+
+    setLocation('/home');
+    render(
+      <Language.Provider value="ko">
+        <Probe />
+      </Language.Provider>,
+    );
+
+    expect(router.push).toHaveBeenCalledWith('https://blog.example.com/ko', { scroll: undefined });
+    expect(router.replace).toHaveBeenCalledWith('https://blog.example.com/ko', { scroll: false });
+    expect(screen.getByRole('link', { name: 'blog' }).getAttribute('href')).toBe('https://blog.example.com/ko');
+  });
+
+  test('a route the resolver returns nothing for keeps its own href', () => {
+    const { TypedLink } = linked;
+    const Probe = () => {
+      linked.useTypedRouter().push('/products/[id]', { params: { id: '7' } });
+      return <TypedLink href="/home">home</TypedLink>;
+    };
+
+    at('/home', <Probe />);
+
+    expect(router.push).toHaveBeenCalledWith('/products/7', { scroll: undefined });
+    expect(screen.getByRole('link', { name: 'home' }).getAttribute('href')).toBe('/home');
+  });
+
+  test('prefetch skips a resolved absolute URL but still prefetches a resolved local one', () => {
+    const aliased = bindRoutes(defineCoreRoutes({ old: { _metadata: {} }, docs: { _metadata: {} } }), {
+      useResolveHref: () => (route) =>
+        route.pathname === '/old' ? '/new' : route.pathname === '/docs' ? 'https://docs.example.com' : undefined,
+    });
+    const Probe = () => {
+      const typed = aliased.useTypedRouter();
+      typed.prefetch('/docs');
+      typed.prefetch('/old');
+      return null;
+    };
+
+    at('/', <Probe />);
+
+    expect(router.prefetch).toHaveBeenCalledTimes(1);
+    expect(router.prefetch).toHaveBeenCalledWith('/new');
+  });
+
+  test('the resolver sees the route s pathname, metadata, params, search params and hash', () => {
+    const seen = vi.fn(() => undefined);
+    const searchParamsSchema = z.object({ tab: z.string().optional() });
+    const watched = bindRoutes(defineCoreRoutes({ products: { '[id]': { _metadata: { title: 'Detail', searchParamsSchema } } } }), {
+      useResolveHref: () => seen,
+    });
+    const Probe = () => {
+      watched.useTypedRouter().push('/products/[id]', { params: { id: '7' }, searchParams: { tab: 'info' }, hash: 'top' });
+      return null;
+    };
+
+    at('/', <Probe />);
+
+    expect(seen).toHaveBeenCalledWith({
+      pathname: '/products/[id]',
+      metadata: { title: 'Detail', searchParamsSchema },
+      params: { id: '7' },
+      searchParams: { tab: 'info' },
+      hash: 'top',
+    });
+    expect(router.push).toHaveBeenCalledWith('/products/7?tab=info#top', { scroll: undefined });
   });
 });

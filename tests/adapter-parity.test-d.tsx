@@ -1,7 +1,8 @@
 import { attachMetadata as attachCoreMetadata, defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
-import { bindRoutes as bindNextRoutes, defineRoutes as defineNextRoutes } from '@hyeonqyu/typed-router-next';
+import { bindRoutes as bindNextRoutes, defineRoutes as defineNextRoutes, type ResolveHrefRoute } from '@hyeonqyu/typed-router-next';
 import { bindRoutes as bindPagesRoutes, defineRoutes as definePagesRoutes } from '@hyeonqyu/typed-router-next/pages';
 import { defineRoutes as defineReactRoutes } from '@hyeonqyu/typed-router-react';
+import { useCallback } from 'react';
 import { z } from 'zod';
 
 /**
@@ -170,6 +171,34 @@ const attached = attachCoreMetadata(coreRoutes).withMeta<{ title: string; icon: 
 const boundAttached = bindPagesRoutes(attached);
 const icon: 'home' | 'cart' = boundAttached.getMetadata('/home').icon;
 
+/**
+ * One `useResolveHref` fits both entries, and its resolver sees the tree's own pathnames.
+ * The option is purely additive: the bound adapter's surface is unchanged.
+ */
+const useResolveHref = () => (route: ResolveHrefRoute<typeof coreRoutes.routes>) =>
+  route.pathname === '/search' ? 'https://search.example.com' : undefined;
+const resolvedNext = bindNextRoutes(coreRoutes, { useResolveHref });
+const resolvedPages = bindPagesRoutes(coreRoutes, { useResolveHref });
+const sameNext: typeof boundNext = resolvedNext;
+const samePages: typeof boundPages = resolvedPages;
+
+/** The README's pattern: `useCallback` infers the resolver's parameter from the option's type alone. */
+const useLanguage = () => 'en';
+const withLocale = attachCoreMetadata(coreRoutes).withMeta<{ href?: (context: { language: string }) => string }>()({
+  '/home': { href: ({ language }) => `https://example.com/${language}` },
+});
+const localized = bindNextRoutes(withLocale, {
+  useResolveHref: () => {
+    const language = useLanguage();
+    return useCallback(({ metadata }) => (typeof metadata.href === 'function' ? metadata.href({ language }) : undefined), [language]);
+  },
+});
+
+bindPagesRoutes(coreRoutes, {
+  // @ts-expect-error — the resolver's pathname is the tree's, so an undeclared one is a compile error
+  useResolveHref: () => (route) => (route.pathname === '/nope' ? 'https://example.com' : undefined),
+});
+
 const ReactInvalid = () => {
   const router = reactRoutes.useTypedRouter();
   // @ts-expect-error — `[id]` declares `z.number()`, so a string is not a valid link
@@ -191,6 +220,7 @@ const composed = [{ path: '/', children: routeObjects }, ...routeObjects];
 export {
   composed,
   icon,
+  localized,
   NextInvalid,
   NextNav,
   PagesInvalid,
@@ -198,6 +228,8 @@ export {
   ReactInvalid,
   ReactNav,
   routeObjects,
+  sameNext,
+  samePages,
   shallowOnPagesOnly,
   useBoundBody,
   useSharedBody,

@@ -209,6 +209,8 @@ export const routes = bindRoutes(shared); // same paths, schemas and parsers; ho
 
 `bindRoutes` takes any core route tree, including core's `attachMetadata` result. If the app also attaches metadata, this package's `attachMetadata(shared)(patch)` does both in one step. Never copy the shared tree's keys into a second `defineRoutes` call.
 
+When a route is in the tree but served elsewhere (a blog on another domain), pass `bindRoutes(tree, { useResolveHref })`. `useResolveHref` is a hook returning `({ pathname, metadata, params, searchParams, hash }) => string | undefined`. `push`, `replace`, `prefetch` and `TypedLink` use the returned URL, or the route's own href on `undefined`. `prefetch` skips absolute URLs. The library reads no metadata key: the app picks the field that holds the destination. Return a stable function (`useCallback`). With the option set, render `TypedLink` from client components. `/pages`'s `bindRoutes` takes the same option.
+
 ## Pages Router
 
 `@hyeonqyu/typed-router-next/pages` exposes the same surface plus `RouterReady` / `useRouterReady` — `defineRoutes`, `attachMetadata`, `bindRoutes`, `TypedLink`, `useTypedRouter`, `useTypedParams`, `useTypedSearchParams`, `useTypedPathname`, `useCurrentRoute`, `useCurrentRouteNode`, and the same core re-exports — backed by `next/router`. It never loads the package root, so `next/navigation` stays out of the bundle. A Pages Router app imports **only** from `/pages`.
@@ -313,7 +315,7 @@ Everything below is a member of the object returned by `defineRoutes`, unless ma
 | Name | Signature | Notes |
 | --- | --- | --- |
 | `defineRoutes` *(export)* | `(tree) => TypedRoutes<TTree>` | Entry point. `.withMeta<TMetadata, TContext>()(tree)` for a shared metadata contract. |
-| `bindRoutes` *(export)* | `(source: RouteTree<TTree>) => TypedRoutes<TTree>` | Adds the hooks and `TypedLink` to a tree built elsewhere (core's `defineRoutes` / `attachMetadata`, a shared package). Reuses the source's tree, paths and parsers. `/pages` has its own, backed by `next/router`. |
+| `bindRoutes` *(export)* | `(source: RouteTree<TTree>, options?: { useResolveHref?: () => ResolveHref<TTree> }) => TypedRoutes<TTree>` | Adds the hooks and `TypedLink` to a tree built elsewhere (core's `defineRoutes` / `attachMetadata`, a shared package). Reuses the source's tree, paths and parsers. `useResolveHref` sends chosen routes to another URL. `/pages` has its own, backed by `next/router`. |
 | `attachMetadata` *(export)* | `(source) => (patch) => TypedRoutes`, also `.withMeta<TMetadata, TContext>()(patch)` | For a tree declared in a shared package (usually with core's `defineRoutes`, structure only): attaches this app's metadata by pathname and returns this package's full routes object, so hooks and `TypedLink` see it. Keys are the source's pathnames — an undeclared one is a compile error. Entries merge over the source's `_metadata`; `paramSchema` / `searchParamsSchema` stay the source's. The source is not mutated. |
 | `TypedLink` | `<TPath>(props: TypedLinkProps<TTree, TPath>) => ReactElement` | Server-safe (no hooks). Wraps `next/link`; forwards every other prop. Props: `href`, `params`, `searchParams`, `hash`. |
 | `useTypedRouter()` | `() => { push, replace, prefetch, back, forward, refresh }` | `'use client'`. `push/replace/prefetch(pattern, args?)`; `args` also takes `scroll` (ignored by `prefetch`). |

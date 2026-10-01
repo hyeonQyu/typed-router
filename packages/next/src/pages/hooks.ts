@@ -1,6 +1,5 @@
 import {
   assertRouteMatches,
-  buildHref,
   type BuildHrefArgs,
   type CollectedRoute,
   type ParsePathParamsOptions,
@@ -11,6 +10,7 @@ import {
 import { useRouter } from 'next/router';
 import { useMemo } from 'react';
 import type { RawCurrentRoute } from '../client';
+import { isAbsoluteUrl, toHref, type UseRawResolveHref } from '../resolveHref';
 import type { PagesNavigateOptions } from './navigation.types';
 
 /**
@@ -165,17 +165,22 @@ export type RawTypedRouter = {
   refresh: () => Promise<boolean>;
 };
 
-export const useTypedRouterImpl = (): RawTypedRouter => {
+export const useTypedRouterImpl = (routes: RouteTree<unknown>, useResolveHref: UseRawResolveHref): RawTypedRouter => {
   const router = useRouter();
+  const resolve = useResolveHref();
 
   return useMemo(() => {
-    const toHref = (pathname: string, args?: RawNavigateArgs) => buildHref(pathname, args);
+    const hrefOf = (pathname: string, args?: RawNavigateArgs) => toHref(routes, resolve, pathname, args);
     const optionsOf = (args?: RawNavigateArgs) => ({ scroll: args?.scroll, shallow: args?.shallow });
 
+    // An absolute URL needs nothing special on `push`: the Pages Router hard-navigates to a non-local one.
     return {
-      push: (pathname, args) => router.push(toHref(pathname, args), undefined, optionsOf(args)),
-      replace: (pathname, args) => router.replace(toHref(pathname, args), undefined, optionsOf(args)),
-      prefetch: (pathname, args) => router.prefetch(toHref(pathname, args)),
+      push: (pathname, args) => router.push(hrefOf(pathname, args), undefined, optionsOf(args)),
+      replace: (pathname, args) => router.replace(hrefOf(pathname, args), undefined, optionsOf(args)),
+      prefetch: async (pathname, args) => {
+        const href = hrefOf(pathname, args);
+        if (!isAbsoluteUrl(href)) await router.prefetch(href);
+      },
       back: () => router.back(),
       // What `router.forward()` does, without depending on the Next version that added it.
       forward: () => window.history.forward(),
@@ -183,5 +188,5 @@ export const useTypedRouterImpl = (): RawTypedRouter => {
       // closest match: data fetching runs again and client state survives.
       refresh: () => router.replace(router.asPath, undefined, { scroll: false }),
     };
-  }, [router]);
+  }, [router, routes, resolve]);
 };

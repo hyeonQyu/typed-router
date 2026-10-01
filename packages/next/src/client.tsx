@@ -1,10 +1,11 @@
 'use client';
 
 import type { ParsePathParamsOptions, ParseSearchParamsOptions, RouteMetadata, RouteTree } from '@hyeonqyu/typed-router-core';
-import { assertRouteMatches, buildHref, type BuildHrefArgs } from '@hyeonqyu/typed-router-core';
+import { assertRouteMatches, type BuildHrefArgs } from '@hyeonqyu/typed-router-core';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMemo } from 'react';
 import type { NavigateOptions } from './navigation.types';
+import { isAbsoluteUrl, toHref, type UseRawResolveHref } from './resolveHref';
 
 /**
  * The client half of the adapter, behind its own `'use client'` boundary.
@@ -87,19 +88,24 @@ export type RawTypedRouter = {
   refresh: () => void;
 };
 
-export const useTypedRouterImpl = (): RawTypedRouter => {
+export const useTypedRouterImpl = (routes: RouteTree<unknown>, useResolveHref: UseRawResolveHref): RawTypedRouter => {
   const router = useRouter();
+  const resolve = useResolveHref();
 
   return useMemo(() => {
-    const toHref = (pathname: string, args?: RawNavigateArgs) => buildHref(pathname, args);
+    const hrefOf = (pathname: string, args?: RawNavigateArgs) => toHref(routes, resolve, pathname, args);
 
+    // An absolute URL needs nothing special on `push`: the App Router hard-navigates to it.
     return {
-      push: (pathname, args) => router.push(toHref(pathname, args), { scroll: args?.scroll }),
-      replace: (pathname, args) => router.replace(toHref(pathname, args), { scroll: args?.scroll }),
-      prefetch: (pathname, args) => router.prefetch(toHref(pathname, args)),
+      push: (pathname, args) => router.push(hrefOf(pathname, args), { scroll: args?.scroll }),
+      replace: (pathname, args) => router.replace(hrefOf(pathname, args), { scroll: args?.scroll }),
+      prefetch: (pathname, args) => {
+        const href = hrefOf(pathname, args);
+        if (!isAbsoluteUrl(href)) router.prefetch(href);
+      },
       back: () => router.back(),
       forward: () => router.forward(),
       refresh: () => router.refresh(),
     };
-  }, [router]);
+  }, [router, routes, resolve]);
 };

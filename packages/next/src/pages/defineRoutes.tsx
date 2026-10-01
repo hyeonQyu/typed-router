@@ -14,6 +14,7 @@ import {
 } from '@hyeonqyu/typed-router-core';
 // Types only, and erased: the App Router entry's runtime never reaches this module.
 import type { TypedRoutes as AppTypedRoutes, CurrentRoute } from '../defineRoutes';
+import { toResolverHook, type BindRoutesOptions } from '../resolveHref';
 import { createTypedLink } from '../TypedLink';
 import { useCurrentRouteImpl, useCurrentRouteNodeImpl, useTypedParamsImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './hooks';
 import type { PagesNavigateArgsTuple } from './navigation.types';
@@ -50,14 +51,18 @@ export type TypedRoutes<TTree> = Omit<AppTypedRoutes<TTree>, 'useTypedRouter'> &
  * ```
  *
  * The source's tree, paths and parsers are reused as they are, not rebuilt.
+ *
+ * Pass `useResolveHref` when some routes navigate elsewhere — see {@link BindRoutesOptions}.
  */
-export const bindRoutes = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree> => {
+// `NoInfer`: the tree comes from `source` alone, so a loosely typed resolver cannot widen it.
+export const bindRoutes = <TTree,>(source: RouteTree<TTree>, options?: BindRoutesOptions<NoInfer<TTree>>): TypedRoutes<TTree> => {
   const untyped = source as RouteTree<unknown>;
+  const useResolveHref = toResolverHook(options);
 
   return {
     ...source,
 
-    TypedLink: createTypedLink<TTree>(),
+    TypedLink: createTypedLink<TTree>(untyped, useResolveHref),
 
     useCurrentRoute: () => useCurrentRouteImpl(untyped) as CurrentRoute<TTree>,
 
@@ -85,7 +90,7 @@ export const bindRoutes = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree>
      */
     useTypedSearchParams: (pathname, options) => useTypedSearchParamsImpl(untyped, pathname, options) as never,
 
-    useTypedRouter: () => useTypedRouterImpl() as TypedRouter<TTree>,
+    useTypedRouter: () => useTypedRouterImpl(untyped, useResolveHref) as TypedRouter<TTree>,
 
     $types: {} as TypedRoutes<TTree>['$types'],
   };

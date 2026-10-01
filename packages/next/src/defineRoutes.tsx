@@ -20,6 +20,7 @@ import {
 import type { ReactElement, Ref } from 'react';
 import { useCurrentRouteImpl, useCurrentRouteNodeImpl, useTypedParamsImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './client';
 import type { NavigateArgsTuple } from './navigation.types';
+import { toResolverHook, type BindRoutesOptions } from './resolveHref';
 import { createTypedLink, type TypedLinkProps } from './TypedLink';
 
 export type CurrentRoute<TTree> = {
@@ -67,16 +68,20 @@ export type TypedRoutes<TTree> = RouteTree<TTree> & {
  * ```
  *
  * The source's tree, paths and parsers are reused as they are, not rebuilt.
+ *
+ * Pass `useResolveHref` when some routes navigate elsewhere — see {@link BindRoutesOptions}.
  */
-export const bindRoutes = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree> => {
+// `NoInfer`: the tree comes from `source` alone, so a loosely typed resolver cannot widen it.
+export const bindRoutes = <TTree,>(source: RouteTree<TTree>, options?: BindRoutesOptions<NoInfer<TTree>>): TypedRoutes<TTree> => {
   const untyped = source as RouteTree<unknown>;
+  const useResolveHref = toResolverHook(options);
 
   // The hooks below live behind a `'use client'` boundary. They are only *referenced*
   // here, never called, so this module stays importable from server components.
   return {
     ...source,
 
-    TypedLink: createTypedLink<TTree>(),
+    TypedLink: createTypedLink<TTree>(untyped, useResolveHref),
 
     useCurrentRoute: () => useCurrentRouteImpl(untyped) as CurrentRoute<TTree>,
 
@@ -100,7 +105,7 @@ export const bindRoutes = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree>
     /** The current search params, validated and coerced by the route's schema. */
     useTypedSearchParams: (pathname, options) => useTypedSearchParamsImpl(untyped, pathname, options) as never,
 
-    useTypedRouter: () => useTypedRouterImpl() as TypedRouter<TTree>,
+    useTypedRouter: () => useTypedRouterImpl(untyped, useResolveHref) as TypedRouter<TTree>,
 
     $types: {} as TypedRoutes<TTree>['$types'],
   };
