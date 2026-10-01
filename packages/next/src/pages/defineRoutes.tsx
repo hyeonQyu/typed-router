@@ -38,20 +38,7 @@ export type TypedRoutes<TTree> = Omit<AppTypedRoutes<TTree>, 'useTypedRouter'> &
   useTypedRouter: () => TypedRouter<TTree>;
 };
 
-/**
- * Gives a route tree built elsewhere — core's `defineRoutes`, core's `attachMetadata`, a
- * shared package — the Pages Router hooks and `TypedLink`, without declaring it again.
- *
- * ```ts
- * import { bindRoutes } from '@hyeonqyu/typed-router-next/pages';
- * import { routes as shared } from '@acme/shop-routes'; // declared with core
- *
- * export const { useTypedRouter, TypedLink, useTypedParams, useTypedSearchParams, useCurrentRoute } = bindRoutes(shared);
- * ```
- *
- * The source's tree, paths and parsers are reused as they are, not rebuilt.
- */
-export const bindRoutes = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree> => {
+const bind = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree> => {
   const untyped = source as RouteTree<unknown>;
 
   return {
@@ -91,7 +78,27 @@ export const bindRoutes = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree>
   };
 };
 
-const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => bindRoutes(createRouteTree(tree));
+/**
+ * Gives a route tree built elsewhere — core's `defineRoutes`, core's `attachMetadata`, a
+ * shared package — the Pages Router hooks and `TypedLink`, without declaring it again.
+ *
+ * ```ts
+ * import { bindRoutes } from '@hyeonqyu/typed-router-next/pages';
+ * import { routes as shared } from '@acme/shop-routes'; // declared with core
+ *
+ * export const { useTypedRouter, TypedLink, useTypedParams, useTypedSearchParams, useCurrentRoute } = bindRoutes(shared);
+ * ```
+ *
+ * The source's tree, paths and parsers are reused as they are, not rebuilt.
+ */
+// The tree is read off the source (`TSource['routes']`) rather than inferred back out of
+// `RouteTree<TTree>`: solving `TTree` from members like `paths: RoutePaths<TTree>[]` is what
+// costs instantiations in proportion to the tree, and gives up on a large one (TS2589 / TS2590).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any tree is accepted; its type comes from `routes`
+export const bindRoutes = <TSource extends RouteTree<any>>(source: TSource): TypedRoutes<TSource['routes']> =>
+  bind(source as RouteTree<TSource['routes']>);
+
+const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => bind(createRouteTree(tree));
 
 /**
  * Declares a route tree and returns everything the Next.js Pages Router needs to
