@@ -65,6 +65,17 @@ const useBoundBody = () => {
 const boundWide = bindNextRoutes(wideRoutes);
 type _widePaths = Expect<Equal<typeof boundWide.$types.pathname, (typeof wideRoutes.paths)[number]>>;
 
+// `useResolveHref` is typed from the same tree: the resolver sees the app's own pathnames.
+const resolvedNext = bindNextRoutes(appRoutes, {
+  useResolveHref: () => (route) => (route.pathname === '/section1/[id]' ? 'https://example.com' : undefined),
+});
+type _resolvedSame = Expect<Equal<typeof resolvedNext, typeof boundNext>>;
+
+bindPagesRoutes(appRoutes, {
+  // @ts-expect-error — `/section6` is not a pathname of the tree
+  useResolveHref: () => (route) => (route.pathname === '/section6' ? 'https://example.com' : undefined),
+});
+
 // Anything that is not a route tree is still rejected.
 // @ts-expect-error — the bare tree, not a route tree
 bindNextRoutes(appRoutes.routes);

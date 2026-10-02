@@ -14,6 +14,7 @@ import {
 } from '@hyeonqyu/typed-router-core';
 // Types only, and erased: the App Router entry's runtime never reaches this module.
 import type { TypedRoutes as AppTypedRoutes, CurrentRoute } from '../defineRoutes';
+import { toResolverHook, type BindRoutesOptions } from '../resolveHref';
 import { createTypedLink } from '../TypedLink';
 import { useCurrentRouteImpl, useCurrentRouteNodeImpl, useTypedParamsImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './hooks';
 import type { PagesNavigateArgsTuple } from './navigation.types';
@@ -38,13 +39,14 @@ export type TypedRoutes<TTree> = Omit<AppTypedRoutes<TTree>, 'useTypedRouter'> &
   useTypedRouter: () => TypedRouter<TTree>;
 };
 
-const bind = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree> => {
+const bind = <TTree,>(source: RouteTree<TTree>, options?: BindRoutesOptions<TTree>): TypedRoutes<TTree> => {
   const untyped = source as RouteTree<unknown>;
+  const useResolveHref = toResolverHook(options);
 
   return {
     ...source,
 
-    TypedLink: createTypedLink<TTree>(),
+    TypedLink: createTypedLink<TTree>(untyped, useResolveHref),
 
     useCurrentRoute: () => useCurrentRouteImpl(untyped) as CurrentRoute<TTree>,
 
@@ -72,7 +74,7 @@ const bind = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree> => {
      */
     useTypedSearchParams: (pathname, options) => useTypedSearchParamsImpl(untyped, pathname, options) as never,
 
-    useTypedRouter: () => useTypedRouterImpl() as TypedRouter<TTree>,
+    useTypedRouter: () => useTypedRouterImpl(untyped, useResolveHref) as TypedRouter<TTree>,
 
     $types: {} as TypedRoutes<TTree>['$types'],
   };
@@ -90,13 +92,18 @@ const bind = <TTree,>(source: RouteTree<TTree>): TypedRoutes<TTree> => {
  * ```
  *
  * The source's tree, paths and parsers are reused as they are, not rebuilt.
+ *
+ * Pass `useResolveHref` when some routes navigate elsewhere — see {@link BindRoutesOptions}.
  */
 // The tree is read off the source (`TSource['routes']`) rather than inferred back out of
 // `RouteTree<TTree>`: solving `TTree` from members like `paths: RoutePaths<TTree>[]` is what
 // costs instantiations in proportion to the tree, and gives up on a large one (TS2589 / TS2590).
+// `NoInfer`: the tree comes from `source` alone, so a loosely typed resolver cannot widen it.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- any tree is accepted; its type comes from `routes`
-export const bindRoutes = <TSource extends RouteTree<any>>(source: TSource): TypedRoutes<TSource['routes']> =>
-  bind(source as RouteTree<TSource['routes']>);
+export const bindRoutes = <TSource extends RouteTree<any>>(
+  source: TSource,
+  options?: BindRoutesOptions<NoInfer<TSource['routes']>>,
+): TypedRoutes<TSource['routes']> => bind<TSource['routes']>(source, options);
 
 const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => bind(createRouteTree(tree));
 

@@ -160,7 +160,8 @@ test('a missing pages directory is a thrown error, not an empty report', () => {
 // --- the real example app --------------------------------------------------------
 
 test('the Pages Router example s tree matches its own src/pages', () => {
-  expect(findPagesDirDrift(exampleRoutes, 'examples/next-pages-example/src/pages')).toEqual({
+  // `/blog` is served by another site, which the example's `useResolveHref` sends it to.
+  expect(findPagesDirDrift(exampleRoutes, 'examples/next-pages-example/src/pages', { ignore: ['/blog'] })).toEqual({
     missingFromPagesDir: [],
     missingFromTree: [],
     inSync: true,

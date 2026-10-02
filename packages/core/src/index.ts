@@ -67,8 +67,11 @@ export {
   SearchParamsParseError,
   collectRawSearchParams,
   parseSearchParams,
+  searchParamKeys,
   type ParseSearchParamsOptions,
   type RawSearchParams,
+  type SearchParamKeysSchema,
+  type SearchParamKeysValue,
   type SearchParamsErrorMode,
 } from './searchParams.utils';
 

@@ -1,5 +1,6 @@
 export { attachMetadata, bindRoutes, defineRoutes, type CurrentRoute, type TypedRoutes } from './defineRoutes';
 export type { NavigateArgs, NavigateArgsTuple, NavigateOptions } from './navigation.types';
+export type { BindRoutesOptions, ResolveHref, ResolveHrefRoute } from './resolveHref';
 export type { TypedLinkProps } from './TypedLink';
 
 export {
@@ -16,6 +17,7 @@ export {
   parseSearchParams,
   resolveMetadata,
   resolveMetadataValue,
+  searchParamKeys,
   toSearchParamsString,
   type AnySchema,
   type AttachedTree,
@@ -38,6 +40,7 @@ export {
   type RouteMetadataOf,
   type RouteNodeOf,
   type RoutePaths,
+  type SearchParamKeysSchema,
   type SearchParams,
   type SearchParamsErrorMode,
 } from '@hyeonqyu/typed-router-core';

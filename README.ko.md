@@ -13,7 +13,7 @@ npm install @hyeonqyu/typed-router-next zod   # Next.js App Router 또는 Pages 
 npm install @hyeonqyu/typed-router-react zod  # React Router
 ```
 
-`zod`는 선택 사항입니다 — search param 스키마를 선언하는 라우트에서만 필요하며, [Standard Schema](https://standardschema.dev)를 따르는 검증 라이브러리라면 무엇이든 사용할 수 있습니다.
+`zod`는 선택 사항입니다 — search param을 검증하는 라우트에서만 필요하고, [Standard Schema](https://standardschema.dev)를 따르는 검증 라이브러리라면 무엇이든 사용할 수 있으며, 키 이름만 선언하는 라우트에는 필요 없습니다([`searchParamKeys`](#검증-없이-키-이름만-선언하기)).
 
 **이미 쓸 스택이 정해져 있다면?** 각 가이드는 독립적으로 완결됩니다. 여러분 것만 읽으세요:
 
@@ -102,6 +102,23 @@ router.push('/products', { params: { id: 1 } });                // ❌ 동적 �
 ```
 
 경로 파라미터(`params`)와 쿼리 파라미터(`searchParams`)는 항상 별개의 인자이므로, 어느 쪽이 URL을 채우고 어느 쪽이 쿼리 스트링을 채우는지 모호할 일이 없습니다.
+
+### 검증 없이 키 이름만 선언하기
+
+많은 라우트는 쿼리 키 몇 개를 받아 그대로 넘길 뿐이고, 이를 선언하는 목적은 검증이 아니라 키 이름입니다. `searchParamKeys`는 스키마 라이브러리 없이 정확히 그것만 선언합니다:
+
+```ts
+import { defineRoutes, searchParamKeys } from '@hyeonqyu/typed-router-core';
+
+export const routes = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl'>() } },
+});
+
+routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); // '/warning?redirectUrl=%2Fjoin%3Fa%3D1'
+routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ 선언되지 않은 키
+```
+
+모든 키는 선택 사항이고 각 값은 `string | string[]` — 원래 쿼리가 갖는 형태 그대로입니다. 형변환·기본값·거부가 전혀 없으므로 쿼리를 다시 읽으면 원본 값이 돌아오고, 어느 라우트에 붙여도 런타임 동작이 바뀌지 않습니다. 평범한 Standard Schema이므로 나중에 실제 스키마로 바꾸는 것은 한 줄 변경입니다. 키는 타입 인자로 넘기며, 타입 인자 없이 `searchParamKeys()`만 호출하면 아무 키나 조용히 받아들이는 스키마가 되는 대신 컴파일 에러가 납니다.
 
 ## 파라미터 다시 읽기
 

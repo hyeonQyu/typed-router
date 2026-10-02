@@ -52,6 +52,6 @@ Search params round-trip: objects and nested arrays are written as JSON and read
 
 Path params get the same treatment, one segment at a time: a `paramSchema` on a `'[id]'` node types and validates that segment (its name comes from the tree key), and nested routes inherit it. A segment without one still reads back as `string`.
 
-`zod` is an optional peer dependency — schemas are matched structurally, so Zod v3, Zod v4 and any [Standard Schema](https://standardschema.dev) validator work.
+`zod` is an optional peer dependency — schemas are matched structurally, so Zod v3, Zod v4 and any [Standard Schema](https://standardschema.dev) validator work. A route that only names its query keys needs no validator at all: `searchParamsSchema: searchParamKeys<'redirectUrl'>()` types the keys (each optional, `string | string[]`) and passes the raw values through untouched.
 
 MIT

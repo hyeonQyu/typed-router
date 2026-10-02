@@ -178,6 +178,36 @@ export const { TypedLink, useTypedRouter, useTypedParams, useTypedSearchParams, 
 
 It takes any core route tree — including one that went through core's `attachMetadata` — and reuses its paths and parsers as they are. When the app also attaches metadata, `attachMetadata` from this package does both steps at once.
 
+### Routes that live elsewhere — `useResolveHref`
+
+Some entries belong in the tree, because menus, breadcrumbs and access rules are built from it, yet are served somewhere else: a blog on another domain, a support portal. Give `bindRoutes` a `useResolveHref` hook and `push`, `replace`, `prefetch` and `TypedLink` ask its resolver before building the route's own href:
+
+```ts
+// routes.ts
+import { attachMetadata } from '@hyeonqyu/typed-router-core';
+import { bindRoutes } from '@hyeonqyu/typed-router-next';
+import { useCallback } from 'react';
+import { routes as shared } from '@acme/shop-routes';
+import { useLocale } from './locale';
+
+const linked = attachMetadata(shared).withMeta<{ href?: (context: { language: string }) => string }>()({
+  '/blog': { href: ({ language }) => `https://blog.example.com/${language}` },
+});
+
+export const routes = bindRoutes(linked, {
+  useResolveHref: () => {
+    const { language } = useLocale();
+    return useCallback(({ metadata }) => (typeof metadata.href === 'function' ? metadata.href({ language }) : undefined), [language]);
+  },
+});
+```
+
+- The resolver receives `{ pathname, metadata, params, searchParams, hash }`. Return a URL to go there, or `undefined` to keep the route's own href. The library reads no metadata key: `href` above is the app's own field.
+- An absolute URL needs nothing special. `push` hard-navigates to it, `TypedLink` renders a plain anchor, and `prefetch` skips it.
+- Because it is a hook, the resolver can depend on the locale or any other context. Return the same function across renders (`useCallback`): `useTypedRouter` hands out a new router object whenever it changes.
+- With the option set, `TypedLink` runs the hook too, so render it from client components. Without the option nothing changes.
+- `bindRoutes` from `/pages` takes the same option. The drift checks still see the route, so list it under `ignore`.
+
 ## 9. The Pages Router
 
 `@hyeonqyu/typed-router-next/pages` is the same surface backed by `next/router`: `defineRoutes`, `attachMetadata`, `bindRoutes`, the same hooks with the same arguments, `TypedLink`, and the same re-exports. Import everything from it. It never loads the package root, so `next/navigation` never reaches a Pages Router bundle.
