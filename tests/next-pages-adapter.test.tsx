@@ -7,7 +7,7 @@
  * (see `stubs/next-router.ts`); what is under test is everything the adapter does with
  * them. The tree is declared with core, as a shared package would, and bound here.
  */
-import { defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
+import { attachMetadata as attachCoreMetadata, defineRoutes as defineCoreRoutes } from '@hyeonqyu/typed-router-core';
 import {
   attachMetadata,
   bindRoutes,
@@ -15,11 +15,12 @@ import {
   RouteMismatchError,
   RouteNotReadyError,
   RouterReady,
+  type RouteMetadata,
 } from '@hyeonqyu/typed-router-next/pages';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import type { ReactNode } from 'react';
+import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import ts from 'typescript';
@@ -297,6 +298,61 @@ describe('TypedLink', () => {
     );
 
     expect(screen.getByRole('link', { name: 'detail' }).getAttribute('href')).toBe('/products/42#top');
+  });
+});
+
+describe('useResolveHref', () => {
+  const Language = createContext('en');
+
+  const linked = bindRoutes(
+    attachCoreMetadata(defineCoreRoutes({ home: { _metadata: {} }, blog: { _metadata: {} } })).withMeta<{
+      href?: (context: { language: string }) => string;
+    }>()({
+      '/blog': { href: ({ language }) => `https://blog.example.com/${language}` },
+    }),
+    {
+      useResolveHref: () => {
+        const language = useContext(Language);
+        return useCallback(
+          ({ metadata }: { metadata: RouteMetadata }) =>
+            (metadata.href as ((c: { language: string }) => string) | undefined)?.({ language }),
+          [language],
+        );
+      },
+    },
+  );
+
+  test('push, replace and TypedLink go where the resolver says; prefetch skips the absolute URL', async () => {
+    const { TypedLink } = linked;
+    let typed: ReturnType<typeof linked.useTypedRouter> | undefined;
+    const Probe = () => {
+      typed = linked.useTypedRouter();
+      return (
+        <>
+          <TypedLink href="/blog">blog</TypedLink>
+          <TypedLink href="/home">home</TypedLink>
+        </>
+      );
+    };
+
+    setPage('/home', '/home');
+    render(
+      <Language.Provider value="ko">
+        <Probe />
+      </Language.Provider>,
+    );
+
+    await typed!.push('/blog', { shallow: true });
+    await typed!.replace('/blog');
+    await typed!.prefetch('/blog');
+    await typed!.prefetch('/home');
+
+    expect(router.push).toHaveBeenCalledWith('https://blog.example.com/ko', undefined, { scroll: undefined, shallow: true });
+    expect(router.replace).toHaveBeenCalledWith('https://blog.example.com/ko', undefined, { scroll: undefined, shallow: undefined });
+    expect(router.prefetch).toHaveBeenCalledTimes(1);
+    expect(router.prefetch).toHaveBeenCalledWith('/home');
+    expect(screen.getByRole('link', { name: 'blog' }).getAttribute('href')).toBe('https://blog.example.com/ko');
+    expect(screen.getByRole('link', { name: 'home' }).getAttribute('href')).toBe('/home');
   });
 });
 

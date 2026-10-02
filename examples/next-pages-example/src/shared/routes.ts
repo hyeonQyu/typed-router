@@ -8,7 +8,8 @@ import { z } from 'zod';
  * nothing an app on another router would have to install. Each app binds its own
  * adapter to it; this one does so in `../routes.ts`.
  *
- * The keys mirror `src/pages/` one for one, which `tests/check-pages.test.ts` enforces.
+ * The keys mirror `src/pages/` one for one, which `tests/check-pages.test.ts` enforces —
+ * except `/blog`, which another app serves.
  */
 export const routes = defineRoutes({
   // `pages/index.tsx` is the root: the empty key, reached as `'/'`.
@@ -31,4 +32,8 @@ export const routes = defineRoutes({
   docs: {
     '[...slug]': { _metadata: { title: 'Docs' } },
   },
+
+  // In the tree because menus are built from it, though no `pages/blog.tsx` serves it.
+  // Where it actually lives is the app's call: see `../routes.ts`.
+  blog: { _metadata: { title: 'Blog' } },
 });

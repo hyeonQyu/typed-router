@@ -6,6 +6,7 @@
  */
 export type { CurrentRoute } from '../defineRoutes';
 export type { NavigateOptions } from '../navigation.types';
+export type { BindRoutesOptions, ResolveHref, ResolveHrefRoute } from '../resolveHref';
 export type { TypedLinkProps } from '../TypedLink';
 export { attachMetadata, bindRoutes, defineRoutes, type TypedRoutes } from './defineRoutes';
 export { RouteNotReadyError } from './hooks';

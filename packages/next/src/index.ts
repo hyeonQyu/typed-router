@@ -1,5 +1,6 @@
 export { attachMetadata, bindRoutes, defineRoutes, type CurrentRoute, type TypedRoutes } from './defineRoutes';
 export type { NavigateArgs, NavigateArgsTuple, NavigateOptions } from './navigation.types';
+export type { BindRoutesOptions, ResolveHref, ResolveHrefRoute } from './resolveHref';
 export type { TypedLinkProps } from './TypedLink';
 
 export {

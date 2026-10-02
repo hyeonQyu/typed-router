@@ -23,5 +23,8 @@ export const Nav = () => (
     <TypedLink href="/docs/[...slug]" params={{ slug: ['guide', 'getting-started'] }} style={subtleLink}>
       Docs
     </TypedLink>
+    <TypedLink href="/blog" style={subtleLink}>
+      Blog ↗
+    </TypedLink>
   </nav>
 );

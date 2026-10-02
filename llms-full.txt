@@ -836,6 +836,14 @@ export const routes = bindRoutes(shared); // same tree, paths and parsers; hooks
 Any core route tree works, including one returned by core's `attachMetadata`. When the app attaches
 metadata as well, this package's own `attachMetadata(shared)(patch)` does both in one step.
 
+A route that is in the tree but served elsewhere (a blog on another domain) is redirected with
+`bindRoutes(tree, { useResolveHref })`. `useResolveHref` is a hook, so it can read the locale from
+context. It returns `({ pathname, metadata, params, searchParams, hash }) => string | undefined`.
+`push`, `replace`, `prefetch` and `TypedLink` use the returned URL, or the route's own href on
+`undefined`, and `prefetch` skips absolute URLs. The library reads no metadata key. Return a stable
+function (`useCallback`). With the option set, render `TypedLink` from client components. The
+`/pages` entry's `bindRoutes` takes the same option.
+
 ### 8.8 The Pages Router — `@hyeonqyu/typed-router-next/pages`
 
 The same surface, backed by `next/router`: `defineRoutes`, `attachMetadata`, `bindRoutes`,
