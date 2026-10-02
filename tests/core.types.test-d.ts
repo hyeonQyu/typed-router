@@ -9,6 +9,8 @@ import {
   type RouteChildren,
   type RouteMetadataOf,
   type SearchParams,
+  type SearchParamsInput,
+  searchParamKeys,
 } from '@hyeonqyu/typed-router-core';
 import { routes, typedParamRoutes, type Routes, type TypedParamRoutes } from './fixtures';
 
@@ -265,6 +267,30 @@ type _childrenDistributesOverUnions = Expect<
 // The member that has children still has them, rather than collapsing to `{}`.
 type _childrenOfUnionKeepsSegments = Expect<Equal<keyof Extract<RouteChildren<HomeNode | ProductsNode>, { '[id]': unknown }>, '[id]'>>;
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * 10. searchParamKeys() — key names without a validator
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const keyed = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl' | 'from'>() } },
+});
+
+keyed.buildHref('/warning');
+keyed.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } });
+keyed.buildHref('/warning', { searchParams: { from: ['a', 'b'] } });
+
+// @ts-expect-error — `redirect` is not a declared key
+keyed.buildHref('/warning', { searchParams: { redirect: '/' } });
+
+// @ts-expect-error — values are text, as in a raw query; nothing coerces a number
+keyed.buildHref('/warning', { searchParams: { redirectUrl: 1 } });
+
+// @ts-expect-error — without the keys as a type argument it would accept any key, so it refuses to compile
+searchParamKeys();
+
+type _keysWriteShape = Expect<Equal<SearchParamsInput<typeof keyed.$types.tree, '/warning'>, { redirectUrl?: string | string[]; from?: string | string[] }>>;
+type _keysReadShape = Expect<Equal<SearchParams<typeof keyed, '/warning'>, { redirectUrl?: string | string[]; from?: string | string[] }>>;
+
 export type {
   _catchAllParam,
   _catchAllReadsAsStrings,
@@ -287,6 +313,8 @@ export type {
   _dynamicParam,
   _inheritsOneAncestor,
   _inheritsTwoAncestors,
+  _keysReadShape,
+  _keysWriteShape,
   _matchIsNullable,
   _metadataLiteral,
   _metadataViaHelper,

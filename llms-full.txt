@@ -449,6 +449,25 @@ The read side returns the schema's **output** type (defaults applied, transforms
 side (`buildHref`, `push`, `TypedLink`) takes the **input** type — which is why a `.default()`
 field is optional to write but always present to read.
 
+**Naming keys without a validator.** A route that only passes a few keys through needs their names,
+not validation. `searchParamKeys<'a' | 'b'>()` is a pass-through Standard Schema for exactly that:
+every key optional, each value `string | string[]` (the raw query shape), any other key a compile
+error. Nothing is coerced, defaulted or rejected, so reading returns the raw values — it is safe on
+any route, and swapping in a real schema later is a one-line change. The keys must be given as a type
+argument; `searchParamKeys()` without one does not compile, rather than accepting any key.
+
+```ts
+import { defineRoutes, searchParamKeys } from '@hyeonqyu/typed-router-core'; // re-exported by both adapters
+
+const routes = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl'>() } },
+});
+
+routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); // '/warning?redirectUrl=%2Fjoin%3Fa%3D1'
+routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ unknown key
+routes.parseSearchParams('/warning', { redirectUrl: '/join' });              // { redirectUrl: '/join' } — as-is
+```
+
 **What the write side puts in the URL.** Every value is encoded by what a URL can carry back:
 
 | written value | query string | read back as |
@@ -1097,7 +1116,7 @@ a `defineRoutes` result:
 import {
   buildHref, collectRoutes, matchRoute, parseSearchParams,
   collectRawSearchParams, toSearchParamsString,
-  parseSegment, splitPath, isRouteGroup, children, METADATA_KEY,
+  parseSegment, splitPath, isRouteGroup, children, searchParamKeys, METADATA_KEY,
 } from '@hyeonqyu/typed-router-core';
 
 buildHref('/products/[id]', { params: { id: 7 }, searchParams: { page: 2 } }); // untyped path
@@ -1227,7 +1246,7 @@ has the same members backed by `next/router` (§8.8). `-react` adds
 `navigate(0)`.
 
 **Exported functions:** re-exported by **every** package — `buildHref`, `children`, `matchRoute`,
-`collectRoutes`, `parseSearchParams`, `parsePathParams`, `toSearchParamsString`, `resolveMetadata`,
+`collectRoutes`, `parseSearchParams`, `searchParamKeys`, `parsePathParams`, `toSearchParamsString`, `resolveMetadata`,
 `resolveMetadataValue`, `isRouteGroup`, `METADATA_KEY`, `SearchParamsParseError`,
 `PathParamsParseError`, `RouteMismatchError`, `assertRouteMatches`, `isSameOrAncestorRoute`.
 **Core only**
@@ -1237,7 +1256,7 @@ has the same members backed by `next/router` (§8.8). `-react` adds
 **Exported types:** `Pathname`, `SearchParams`, `Params`, `RouteNodeOf`, `RouteMetadataOf`,
 `CollectedRouteOf`, `RouteArgs`, `RouteChildren`, `AttachedTree`, `MetadataPatch`, `MetadataPatchWithMeta`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
 `RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `ResolvedMetadata`, `ResolvableMetadataKey`,
-`UseCurrentRouteNode`, `AnySchema`, `SearchParamsErrorMode`,
+`UseCurrentRouteNode`, `AnySchema`, `SearchParamKeysSchema`, `SearchParamsErrorMode`,
 `PathParamsErrorMode`, `RawPathParams`, `PathParamSchemas`,
 `CurrentRoute<TTree>`, `TypedRoutes<TTree>`, `TypedLinkProps`, `NavigateArgs`, `NavigateArgsTuple`,
 `NavigateOptions`.
