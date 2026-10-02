@@ -56,23 +56,7 @@ export type TypedRoutes<TTree> = RouteTree<TTree> & {
   $types: { tree: TTree; pathname: RoutePaths<TTree> };
 };
 
-/**
- * Gives a route tree built elsewhere — core's `defineRoutes`, core's `attachMetadata`, a
- * shared package — the hooks and `TypedLink`, without declaring it again.
- *
- * ```ts
- * import { bindRoutes } from '@hyeonqyu/typed-router-next';
- * import { routes as shared } from '@acme/shop-routes'; // declared with core
- *
- * export const routes = bindRoutes(shared);
- * ```
- *
- * The source's tree, paths and parsers are reused as they are, not rebuilt.
- *
- * Pass `useResolveHref` when some routes navigate elsewhere — see {@link BindRoutesOptions}.
- */
-// `NoInfer`: the tree comes from `source` alone, so a loosely typed resolver cannot widen it.
-export const bindRoutes = <TTree,>(source: RouteTree<TTree>, options?: BindRoutesOptions<NoInfer<TTree>>): TypedRoutes<TTree> => {
+const bind = <TTree,>(source: RouteTree<TTree>, options?: BindRoutesOptions<TTree>): TypedRoutes<TTree> => {
   const untyped = source as RouteTree<unknown>;
   const useResolveHref = toResolverHook(options);
 
@@ -111,7 +95,32 @@ export const bindRoutes = <TTree,>(source: RouteTree<TTree>, options?: BindRoute
   };
 };
 
-const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => bindRoutes(createRouteTree(tree));
+/**
+ * Gives a route tree built elsewhere — core's `defineRoutes`, core's `attachMetadata`, a
+ * shared package — the hooks and `TypedLink`, without declaring it again.
+ *
+ * ```ts
+ * import { bindRoutes } from '@hyeonqyu/typed-router-next';
+ * import { routes as shared } from '@acme/shop-routes'; // declared with core
+ *
+ * export const routes = bindRoutes(shared);
+ * ```
+ *
+ * The source's tree, paths and parsers are reused as they are, not rebuilt.
+ *
+ * Pass `useResolveHref` when some routes navigate elsewhere — see {@link BindRoutesOptions}.
+ */
+// The tree is read off the source (`TSource['routes']`) rather than inferred back out of
+// `RouteTree<TTree>`: solving `TTree` from members like `paths: RoutePaths<TTree>[]` is what
+// costs instantiations in proportion to the tree, and gives up on a large one (TS2589 / TS2590).
+// `NoInfer`: the tree comes from `source` alone, so a loosely typed resolver cannot widen it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any tree is accepted; its type comes from `routes`
+export const bindRoutes = <TSource extends RouteTree<any>>(
+  source: TSource,
+  options?: BindRoutesOptions<NoInfer<TSource['routes']>>,
+): TypedRoutes<TSource['routes']> => bind<TSource['routes']>(source, options);
+
+const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => bind(createRouteTree(tree));
 
 /**
  * Declares a route tree and returns everything Next.js needs to navigate it type-safely.
