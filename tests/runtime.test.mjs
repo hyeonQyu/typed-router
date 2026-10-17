@@ -672,6 +672,11 @@ test('searchParamKeys writes declared keys like any other search param', () => {
   assert.equal(keyed.buildHref('/warning', { searchParams: { from: ['a', 'b'] } }), '/warning?from=a&from=b');
 });
 
+test('searchParamKeys writes numbers, booleans and bigints as their plain text', () => {
+  assert.equal(keyed.buildHref('/warning', { searchParams: { page: 1, from: [3, 7] } }), '/warning?page=1&from=3&from=7');
+  assert.equal(keyed.buildHref('/warning', { searchParams: { flag: false, id: 10n } }), '/warning?flag=false&id=10');
+});
+
 test('searchParamKeys reads the raw query back without coercing anything', () => {
   assert.deepEqual(keyed.parseSearchParams('/warning', { redirectUrl: '/join', page: '2', flag: 'true', list: ['1', '2'] }), {
     redirectUrl: '/join',

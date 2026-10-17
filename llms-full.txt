@@ -451,8 +451,10 @@ field is optional to write but always present to read.
 
 **Naming keys without a validator.** A route that only passes a few keys through needs their names,
 not validation. `searchParamKeys<'a' | 'b'>()` is a pass-through Standard Schema for exactly that:
-every key optional, each value `string | string[]` (the raw query shape), any other key a compile
-error. Nothing is coerced, defaulted or rejected, so reading returns the raw values — it is safe on
+every key optional, any other key a compile error. Writing takes a string, number, boolean or
+bigint (or a list of them) as plain text — not a `Date` or an object, whose ISO/JSON form it won't
+pick silently. Reading returns `string | string[]` (the raw query shape). Nothing is coerced,
+defaulted or rejected, so reading returns the raw values — it is safe on
 any route, and swapping in a real schema later is a one-line change. The keys must be given as a type
 argument; `searchParamKeys()` without one does not compile, rather than accepting any key.
 

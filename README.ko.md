@@ -118,7 +118,7 @@ routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); //
 routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ 선언되지 않은 키
 ```
 
-모든 키는 선택 사항이고 각 값은 `string | string[]` — 원래 쿼리가 갖는 형태 그대로입니다. 형변환·기본값·거부가 전혀 없으므로 쿼리를 다시 읽으면 원본 값이 돌아오고, 어느 라우트에 붙여도 런타임 동작이 바뀌지 않습니다. 평범한 Standard Schema이므로 나중에 실제 스키마로 바꾸는 것은 한 줄 변경입니다. 키는 타입 인자로 넘기며, 타입 인자 없이 `searchParamKeys()`만 호출하면 아무 키나 조용히 받아들이는 스키마가 되는 대신 컴파일 에러가 납니다.
+모든 키는 선택 사항입니다. 쓸 때는 string·number·boolean·bigint 또는 그 배열을 받아 각각 평문으로 씁니다. `Date`나 객체는 컴파일 에러인데, 이를 ISO 문자열이나 JSON으로 바꾸는 것은 pass-through 스키마가 조용히 정할 일이 아니기 때문입니다. 읽을 때는 `string | string[]` — 원래 쿼리가 갖는 형태 그대로입니다. 형변환·기본값·거부가 전혀 없으므로 `1`로 쓴 값은 `'1'`로 읽히고, 어느 라우트에 붙여도 런타임 동작이 바뀌지 않습니다. 평범한 Standard Schema이므로 나중에 실제 스키마로 바꾸는 것은 한 줄 변경입니다. 키는 타입 인자로 넘기며, 타입 인자 없이 `searchParamKeys()`만 호출하면 아무 키나 조용히 받아들이는 스키마가 되는 대신 컴파일 에러가 납니다.
 
 ## 파라미터 다시 읽기
 
