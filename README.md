@@ -119,7 +119,7 @@ routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); //
 routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ unknown key
 ```
 
-Every key is optional and each value is `string | string[]` — the shape a raw query already has. Nothing is coerced, defaulted or rejected, so reading the query back returns the raw values and the helper is safe on any route. It is a plain Standard Schema, so moving to a real one later is a one-line change. The keys go in the type argument; `searchParamKeys()` without one is a compile error rather than a schema that quietly accepts any key.
+Every key is optional. Writing takes a string, number, boolean or bigint, or a list of them, and writes each as its plain text; a `Date` or an object is a compile error, because turning it into an ISO string or JSON is a choice a pass-through shouldn't make silently. Reading returns `string | string[]` — the shape a raw query already has. Nothing is coerced, defaulted or rejected, so a number written as `1` reads back as `'1'`, and the helper is safe on any route. It is a plain Standard Schema, so moving to a real one later is a one-line change. The keys go in the type argument; `searchParamKeys()` without one is a compile error rather than a schema that quietly accepts any key.
 
 ## Reading params back
 
