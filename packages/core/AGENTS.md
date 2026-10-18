@@ -336,7 +336,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `parsePathParams` | `(schemas, raw, options?, path?) => Record<string, unknown>` | Standalone path-param parser. `schemas` is `Record<segmentName, schema>`. |
 | `collectRawSearchParams` | `(iterable) => RawSearchParams` | Folds `URLSearchParams`-like entries, repeated keys → arrays. |
 | `toSearchParamsString` | `(obj, path?) => string` | `'?a=1&b=2'`. Skips `undefined`/`null`, repeats arrays, ISO-serialises `Date`, JSON-encodes objects and nested arrays, throws on anything unserialisable. |
-| `searchParamKeys` | `<TKey extends string>() => SearchParamKeysSchema<TKey>` | A pass-through Standard Schema for a `searchParamsSchema` slot when a route only names its query keys: each key optional and `string \| string[]`, any other key a compile error. Validates nothing — no coercion, defaults or rejection — so reading returns the raw values. Keys go in the type argument; calling it without one does not compile. |
+| `searchParamKeys` | `<TKey extends string>() => SearchParamKeysSchema<TKey>` | A pass-through Standard Schema for a `searchParamsSchema` slot when a route only names its query keys: each key optional, written as `string \| number \| boolean \| bigint` (or a list) and read back as `string \| string[]`, any other key a compile error. Validates nothing — no coercion, defaults or rejection — so reading returns the raw values. Keys go in the type argument; calling it without one does not compile. |
 | `children` | `(node) => RouteChildren<TNode>` | One node's child routes, with `_metadata` gone from the value **and** the type — what a menu level, a breadcrumb's siblings or a section index needs. Returns an object, so `keys`/`values`/`entries` all work. `(group)` keys are children like any other. Distributive over a union of nodes, so an unchecked `useCurrentRouteNode()` result is stripped member by member rather than collapsing. Frozen, and cached per node of a declared (frozen) tree, so two calls on the same declared node return the same object. |
 | `parseSegment` / `splitPath` / `isRouteGroup` | — | Segment classification helpers. |
 | `SearchParamsParseError` | `class extends Error` | Thrown under `onError: 'throw'`; `.cause` holds the validator's error. |
@@ -356,7 +356,7 @@ side). The tree argument defaults to `unknown`, under which every segment is the
 `paramSchema`s reflected, or use `Params<…>` / `PathParamsInput<…>`, which take the tree already.
 Also exported: `BuiltinMetadata<TContext>`, `MetadataValue<T, C>`,
 `RouteMatch`, `CollectedRoute`, `SegmentPattern`, `RouteParams`, `BuildHrefArgs`, `RawSearchParams`,
-`SearchParamsErrorMode`, `ParseSearchParamsOptions`, `SearchParamKeysSchema`, `SearchParamKeysValue`, `RawPathParams`, `PathParamSchemas`,
+`SearchParamsErrorMode`, `ParseSearchParamsOptions`, `SearchParamKeysSchema`, `SearchParamKeysValue`, `SearchParamKeysInput`, `SearchParamText`, `RawPathParams`, `PathParamSchemas`,
 `PathParamsErrorMode`, `ParsePathParamsOptions`, `AnySchema`, `ParsableSchema`, `InferSchemaInput`,
 `InferSchemaOutput`, `RouteTreeInput`, `RouteNodeInput`, `RouteTreeInputWithMeta`,
 `RouteNodeInputWithMeta`, `RouteMetadata`, `RouteGroupKey`, `MetadataKey`, `SegmentKeys`,

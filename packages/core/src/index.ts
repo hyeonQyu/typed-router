@@ -70,8 +70,10 @@ export {
   searchParamKeys,
   type ParseSearchParamsOptions,
   type RawSearchParams,
+  type SearchParamKeysInput,
   type SearchParamKeysSchema,
   type SearchParamKeysValue,
+  type SearchParamText,
   type SearchParamsErrorMode,
 } from './searchParams.utils';
 

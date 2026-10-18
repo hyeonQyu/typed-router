@@ -10,6 +10,7 @@ import {
   type RouteMetadataOf,
   type SearchParams,
   type SearchParamsInput,
+  type SearchParamText,
   searchParamKeys,
 } from '@hyeonqyu/typed-router-core';
 import { routes, typedParamRoutes, type Routes, type TypedParamRoutes } from './fixtures';
@@ -282,13 +283,22 @@ keyed.buildHref('/warning', { searchParams: { from: ['a', 'b'] } });
 // @ts-expect-error — `redirect` is not a declared key
 keyed.buildHref('/warning', { searchParams: { redirect: '/' } });
 
-// @ts-expect-error — values are text, as in a raw query; nothing coerces a number
-keyed.buildHref('/warning', { searchParams: { redirectUrl: 1 } });
+// Numbers, booleans and bigints are written as their plain text, as `buildHref` already serialises them
+keyed.buildHref('/warning', { searchParams: { redirectUrl: 1, from: [3, 7] } });
+keyed.buildHref('/warning', { searchParams: { redirectUrl: true, from: [1n, 'a', false] } });
+
+// @ts-expect-error — a Date would be written as an ISO string; a pass-through schema doesn't pick that silently
+keyed.buildHref('/warning', { searchParams: { redirectUrl: new Date() } });
+
+// @ts-expect-error — an object would be written as JSON; same reason
+keyed.buildHref('/warning', { searchParams: { from: [{ id: 1 }] } });
 
 // @ts-expect-error — without the keys as a type argument it would accept any key, so it refuses to compile
 searchParamKeys();
 
-type _keysWriteShape = Expect<Equal<SearchParamsInput<typeof keyed.$types.tree, '/warning'>, { redirectUrl?: string | string[]; from?: string | string[] }>>;
+type _keysWriteShape = Expect<
+  Equal<SearchParamsInput<typeof keyed.$types.tree, '/warning'>, { redirectUrl?: SearchParamText | SearchParamText[]; from?: SearchParamText | SearchParamText[] }>
+>;
 type _keysReadShape = Expect<Equal<SearchParams<typeof keyed, '/warning'>, { redirectUrl?: string | string[]; from?: string | string[] }>>;
 
 export type {
