@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { z } from 'zod';
-import { assertRouteMatches, defineRoutes, isSameOrAncestorRoute } from '@hyeonqyu/typed-router-core';
+import { assertRouteMatches, attachMetadata, children, defineRoutes, isSameOrAncestorRoute, searchParamKeys } from '@hyeonqyu/typed-router-core';
 import { toRouteObjects } from '@hyeonqyu/typed-router-react';
 
 const routes = defineRoutes({
@@ -547,4 +547,152 @@ test('a route whose segments declare nothing behaves exactly as it did before', 
   assert.deepEqual(routes.parseParams('/docs/[...slug]', { slug: ['a', 'b'] }), { slug: ['a', 'b'] });
   assert.deepEqual(routes.parseParams('/files/[[...path]]', {}), {});
   assert.deepEqual(routes.parseParams('/home', {}), {});
+});
+
+/* ── children() ──────────────────────────────────────────────────────────── */
+
+test('children drops the metadata block and nothing else', () => {
+  assert.deepEqual(Object.keys(children(routes.routes)), ['home', '(shop)', 'docs', 'files']);
+  assert.deepEqual(Object.keys(children(routes.routes['(shop)'].products)), ['[id]']);
+
+  // A leaf declares only metadata, so it has no children at all.
+  assert.deepEqual(Object.keys(children(routes.routes.home)), []);
+});
+
+test('children is a shallow view: the child nodes come back untouched', () => {
+  const products = routes.routes['(shop)'].products;
+
+  assert.equal(children(routes.routes['(shop)']).products, products);
+  assert.deepEqual(children(products)['[id]']._metadata, { title: 'Detail' });
+
+  // The node itself is not rewritten — metadata is still enumerable on the tree.
+  assert.ok(Object.keys(products).includes('_metadata'));
+});
+
+test('children returns the same frozen object for the same node', () => {
+  const first = children(routes.routes);
+
+  assert.equal(children(routes.routes), first);
+  assert.ok(Object.isFrozen(first));
+});
+
+test('children of a mutable object reflects later mutation instead of a stale cache', () => {
+  const loose = { _metadata: {}, a: {} };
+  assert.deepEqual(Object.keys(children(loose)), ['a']);
+
+  loose.b = {};
+  assert.deepEqual(Object.keys(children(loose)), ['a', 'b']);
+});
+
+/* ── attachMetadata() ────────────────────────────────────────────────────── */
+
+const productId = z.number();
+
+/** The shared half: structure and schemas, nothing app-specific. */
+const shared = defineRoutes({
+  info: { _metadata: {} },
+  activity: { _metadata: { label: 'Activity' }, quest: { _metadata: {} } },
+  '(auth)': { _metadata: { note: 'group' }, login: { _metadata: {} } },
+  products: { '[id]': { _metadata: { paramSchema: productId } } },
+});
+
+test('attachMetadata merges by pathname and keeps the structure as it was', () => {
+  const ia = attachMetadata(shared)({
+    '/info': { title: 'Info' },
+    '/activity': { title: 'Activity page' },
+    '/login': { title: 'Login' },
+  });
+
+  assert.deepEqual(ia.paths, shared.paths);
+  assert.deepEqual(ia.getMetadata('/info'), { title: 'Info' });
+  assert.deepEqual(ia.getMetadata('/activity'), { label: 'Activity', title: 'Activity page' });
+  assert.deepEqual(ia.getMetadata('/login'), { title: 'Login' });
+
+  // A route group is never a route, so its own metadata is not a merge target.
+  assert.deepEqual(ia.routes['(auth)']._metadata, { note: 'group' });
+});
+
+test('attachMetadata leaves unlisted routes with the source metadata object itself', () => {
+  const ia = attachMetadata(shared)({ '/info': { title: 'Info' } });
+
+  assert.equal(ia.getMetadata('/activity/quest'), shared.getMetadata('/activity/quest'));
+  assert.equal(ia.getMetadata('/products/[id]').paramSchema, productId);
+});
+
+test('attachMetadata does not touch the source, so consumers stay independent', () => {
+  const before = structuredClone(shared.getMetadata('/info'));
+  const a = attachMetadata(shared)({ '/info': { title: 'A' } });
+  const b = attachMetadata(shared)({ '/info': { title: 'B' } });
+
+  assert.deepEqual(shared.getMetadata('/info'), before);
+  assert.equal(a.getMetadata('/info').title, 'A');
+  assert.equal(b.getMetadata('/info').title, 'B');
+  assert.notEqual(a.routes, shared.routes);
+});
+
+test('attachMetadata returns a full route tree: match, collected, children and params all read the result', () => {
+  const ia = attachMetadata(shared)({ '/activity/quest': { title: 'Quests' }, '/products/[id]': { title: 'Product' } });
+
+  assert.equal(ia.match('/activity/quest')?.metadata?.title, 'Quests');
+  assert.equal(ia.collected.find((route) => route.path === '/activity/quest')?.metadata.title, 'Quests');
+  assert.equal(children(ia.routes.activity).quest._metadata.title, 'Quests');
+  assert.equal(children(ia.routes.activity), children(ia.routes.activity));
+  assert.ok(Object.isFrozen(ia.routes.activity));
+
+  // The source's `paramSchema` still coerces the segment on the attached tree.
+  assert.deepEqual(ia.parseParams('/products/[id]', { id: '7' }), { id: 7 });
+});
+
+test('attachMetadata throws on a pathname the source does not declare', () => {
+  assert.throws(() => attachMetadata(shared)({ '/settings': { title: 'Settings' } }), /"\/settings", which is not a route/);
+  // A group key is not part of any pathname.
+  assert.throws(() => attachMetadata(shared)({ '/(auth)/login': { title: 'Login' } }), /not a route/);
+});
+
+test('attachMetadata refuses structural fields, and an undefined one cannot blank out the source', () => {
+  assert.throws(
+    () => attachMetadata(shared)({ '/products/[id]': { paramSchema: z.string() } }),
+    /cannot set "paramSchema" on "\/products\/\[id\]"/,
+  );
+  assert.throws(() => attachMetadata(shared)({ '/info': { searchParamsSchema: z.object({}) } }), /searchParamsSchema/);
+
+  const ia = attachMetadata(shared)({ '/products/[id]': { title: 'Product', paramSchema: undefined } });
+  assert.equal(ia.getMetadata('/products/[id]').paramSchema, productId);
+  assert.ok(!('searchParamsSchema' in attachMetadata(shared)({ '/info': { searchParamsSchema: undefined } }).getMetadata('/info')));
+});
+
+/* ── searchParamKeys() ───────────────────────────────────────────────────── */
+
+const keyed = defineRoutes({
+  warning: { _metadata: { title: 'Warning', searchParamsSchema: searchParamKeys() } },
+});
+
+test('searchParamKeys writes declared keys like any other search param', () => {
+  assert.equal(keyed.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }), '/warning?redirectUrl=%2Fjoin%3Fa%3D1');
+  assert.equal(keyed.buildHref('/warning', { searchParams: { from: ['a', 'b'] } }), '/warning?from=a&from=b');
+});
+
+test('searchParamKeys writes numbers, booleans and bigints as their plain text', () => {
+  assert.equal(keyed.buildHref('/warning', { searchParams: { page: 1, from: [3, 7] } }), '/warning?page=1&from=3&from=7');
+  assert.equal(keyed.buildHref('/warning', { searchParams: { flag: false, id: 10n } }), '/warning?flag=false&id=10');
+});
+
+test('searchParamKeys reads the raw query back without coercing anything', () => {
+  assert.deepEqual(keyed.parseSearchParams('/warning', { redirectUrl: '/join', page: '2', flag: 'true', list: ['1', '2'] }), {
+    redirectUrl: '/join',
+    page: '2',
+    flag: 'true',
+    list: ['1', '2'],
+  });
+  assert.deepEqual(keyed.parseSearchParams('/warning', {}), {});
+});
+
+test('searchParamKeys is a synchronous Standard Schema that never reports issues', () => {
+  const standard = searchParamKeys()['~standard'];
+  const value = { a: 'b' };
+
+  assert.equal(standard.version, 1);
+  assert.equal(standard.vendor, 'typed-router');
+  assert.deepEqual(standard.validate(value), { value });
+  assert.ok(Object.isFrozen(searchParamKeys()));
 });

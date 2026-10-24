@@ -9,15 +9,15 @@
 typed-router는 라우트 맵 전체를 타입이 있는 객체 하나로 만듭니다. 한 번만 선언하면 pathname, 경로 파라미터, 쿼리 파라미터의 타입, 네비게이션, (React Router의 경우) 라우터 설정 자체까지 — 전부 그 선언 하나에서 파생되고 컴파일러가 검증합니다.
 
 ```bash
-npm install @hyeonqyu/typed-router-next zod   # Next.js App Router
+npm install @hyeonqyu/typed-router-next zod   # Next.js App Router 또는 Pages Router
 npm install @hyeonqyu/typed-router-react zod  # React Router
 ```
 
-`zod`는 선택 사항입니다 — search param 스키마를 선언하는 라우트에서만 필요하며, [Standard Schema](https://standardschema.dev)를 따르는 검증 라이브러리라면 무엇이든 사용할 수 있습니다.
+`zod`는 선택 사항입니다 — search param을 검증하는 라우트에서만 필요하고, [Standard Schema](https://standardschema.dev)를 따르는 검증 라이브러리라면 무엇이든 사용할 수 있으며, 키 이름만 선언하는 라우트에는 필요 없습니다([`searchParamKeys`](#검증-없이-키-이름만-선언하기)).
 
 **이미 쓸 스택이 정해져 있다면?** 각 가이드는 독립적으로 완결됩니다. 여러분 것만 읽으세요:
 
-- **[Next.js App Router →](./packages/next/README.ko.md)**
+- **[Next.js App Router →](./packages/next/README.ko.md)** · [Pages Router →](./packages/next/README.ko.md#9-pages-router)
 - **[React Router →](./packages/react/README.ko.md)**
 
 이 페이지의 나머지는 두 가이드가 공통으로 딛고 있는 개념을 설명합니다.
@@ -110,6 +110,23 @@ router.push('/products', { params: { id: 1 } });                // ❌ 동적 �
 ```
 
 경로 파라미터(`params`)와 쿼리 파라미터(`searchParams`)는 항상 별개의 인자이므로, 어느 쪽이 URL을 채우고 어느 쪽이 쿼리 스트링을 채우는지 모호할 일이 없습니다.
+
+### 검증 없이 키 이름만 선언하기
+
+많은 라우트는 쿼리 키 몇 개를 받아 그대로 넘길 뿐이고, 이를 선언하는 목적은 검증이 아니라 키 이름입니다. `searchParamKeys`는 스키마 라이브러리 없이 정확히 그것만 선언합니다:
+
+```ts
+import { defineRoutes, searchParamKeys } from '@hyeonqyu/typed-router-core';
+
+export const routes = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl'>() } },
+});
+
+routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); // '/warning?redirectUrl=%2Fjoin%3Fa%3D1'
+routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ 선언되지 않은 키
+```
+
+모든 키는 선택 사항입니다. 쓸 때는 string·number·boolean·bigint 또는 그 배열을 받아 각각 평문으로 씁니다. `Date`나 객체는 컴파일 에러인데, 이를 ISO 문자열이나 JSON으로 바꾸는 것은 pass-through 스키마가 조용히 정할 일이 아니기 때문입니다. 읽을 때는 `string | string[]` — 원래 쿼리가 갖는 형태 그대로입니다. 형변환·기본값·거부가 전혀 없으므로 `1`로 쓴 값은 `'1'`로 읽히고, 어느 라우트에 붙여도 런타임 동작이 바뀌지 않습니다. 평범한 Standard Schema이므로 나중에 실제 스키마로 바꾸는 것은 한 줄 변경입니다. 키는 타입 인자로 넘기며, 타입 인자 없이 `searchParamKeys()`만 호출하면 아무 키나 조용히 받아들이는 스키마가 되는 대신 컴파일 에러가 납니다.
 
 ## 파라미터 다시 읽기
 
@@ -207,6 +224,62 @@ routes.getMetadata('/home').badge;   // 'new'  — 계약은 하한이지 상한
 
 `_metadata` 자체가 없는 노드는 라우트가 아니라 조직용이므로, 계약이 강제할 대상이 없습니다.
 
+### 트리를 한 단계만 훑기
+
+`paths`와 `collected`는 트리 전체를 평탄화합니다. 메뉴 한 단계, 브레드크럼의 형제 항목, 섹션 인덱스는 그 반대 — *한* 노드의 자식들 — 이고, 여기서 `Object.values(node)`를 쓰면 실제 자식과 함께 `_metadata` 블록이 딸려 나와 유령 항목으로 렌더됩니다. `children()`은 자식만 돌려줍니다:
+
+```ts
+import { children } from '@hyeonqyu/typed-router-core';
+
+const support = routes.routes.support;
+
+Object.keys(support);              // ['_metadata', 'ask', 'notice'] — 메타데이터가 섞여 나온다
+Object.keys(children(support));    // ['ask', 'notice']
+
+Object.entries(children(support)).map(([key, node]) => ({
+  key,
+  title: node._metadata.title,     // 노드별로 타입이 붙는다, 캐스팅 없이
+}));
+```
+
+배열이 아니라 객체를 돌려주므로 `keys`·`values`·`entries`가 모두 그대로 동작하고, 타입 `RouteChildren<TNode>`가 노드에서 `_metadata`를 걷어내되 각 자식은 선언 당시의 리터럴 타입을 유지합니다. 경로를 확인하지 않은 `useCurrentRouteNode()`가 돌려주는 것 같은 노드 유니언도, 공통 키만 남기고 무너지는 대신 멤버별로 각각 걷어냅니다. 라우트 그룹 키 `(name)`도 다른 자식과 똑같이 포함됩니다 — 그룹은 트리를 조직하는 장치이고, 특정 메뉴에서 그룹을 어떻게 다룰지는 여러분이 정할 문제입니다.
+
+트리 자체는 건드리지 않습니다. `_metadata`는 여전히 평범한 열거 가능 속성이라 노드는 스프레드·`structuredClone`·`toEqual`을 그대로 통과합니다. 선언된 트리의 같은 노드로 `children()`을 두 번 부르면 같은 동결 객체가 돌아오므로, 결과를 의존성 배열에 그대로 넣어도 재렌더가 생기지 않습니다.
+
+### 앱 사이에서 트리 공유하기
+
+모노레포에서 앱 A가 앱 B의 페이지로 링크를 걸 때, 그 링크도 앱 내부 링크처럼 자동완성되고 타입 검사를 받아야 합니다. A가 B에게서 필요한 건 구조 — pathname, 동적 세그먼트, 그 스키마 — 이고, 받아서는 안 되는 건 B의 메타데이터 — 번역 키 타입, 에셋, 지연 로딩되는 페이지 — 입니다. 그러니 구조는 공유 패키지에서 한 번만 선언하고, 소유 앱이 pathname 단위로 메타데이터를 붙이게 합니다:
+
+```ts
+// 공유 패키지 — 구조만 담으므로 어느 앱이든 의존할 수 있다
+export const accountRoutes = defineRoutes({
+  info:     { _metadata: {} },
+  activity: { _metadata: {}, quest: { _metadata: {} } },
+});
+
+// 소유 앱
+import { attachMetadata } from '@hyeonqyu/typed-router-react'; // -next, -core도 동일
+
+export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+  '/info':           { title: 'GNB_USER_INFO', element: <UserInfo /> },
+  '/activity':       { title: 'GNB_MY_ACTIVITY' },
+  '/activity/quest': { title: 'GNB_MY_QUESTS' },
+});
+
+routes.getMetadata('/info').title;  // 'GNB_USER_INFO' — withMeta와 마찬가지로 리터럴
+routes.paths;                       // accountRoutes.paths와 정확히 같다
+```
+
+- **키는 공유 트리의 pathname입니다.** 공유 트리에 없는 pathname은 컴파일 에러이므로, 공유 트리에서 라우트를 지우면 거기에 아직 메타데이터를 붙이는 모든 앱이 깨집니다 — 트리를 두 벌 두었을 때는 없던 검사입니다.
+- **결과는 여느 라우트 트리와 같습니다.** `getMetadata`, `match`, `collected`, `children()`, 훅, 그리고 React의 `toRouteObjects`까지 모두 붙인 메타데이터를 읽습니다.
+- **각 항목은 공유 트리의 `_metadata` 위에 병합됩니다.** 빠뜨린 라우트는 공유 트리의 것을 그대로 씁니다. `paramSchema`와 `searchParamsSchema`는 공유 계약의 일부라서 항상 공유 트리에서 오고, 여기서는 지정할 수 없습니다.
+- **공유 트리는 변경되지 않습니다.** 여러 앱이 같은 트리에 각자의 메타데이터를 붙일 수 있습니다.
+- `.withMeta<Contract, Context>()`는 선언한 트리에서와 똑같이 모든 항목에 계약을 강제합니다. 없으면 각 항목이 라우트별로 추론됩니다.
+
+붙인 트리는 컴파일러가 한 번 더 훑기 때문에 중첩 한 단계쯤의 비용이 듭니다. 선언한 트리의 `collected` 유니언은 31단계까지 컴파일되지만, 붙인 트리는 29단계까지입니다.
+
+공유 트리의 훅만 필요하고 붙일 메타데이터가 없는 앱이라면 바인딩만 하면 됩니다. `-next`의 `bindRoutes(accountRoutes)`(Pages Router에서는 `-next/pages`의 것)는 복사나 패치 없이 트리를 그대로 두고 어댑터만 얹어 돌려줍니다.
+
 ## 프레임워크 독립적인 사용
 
 라우트 트리는 순수한 데이터입니다. `@hyeonqyu/typed-router-core`는 React 의존성이 전혀 없는 동일한 선언 방식을 제공합니다 — 스크립트, 테스트, sitemap 생성기 같은 곳에서요. 그리고 각 프레임워크 패키지에서 얻는 `routes` 객체도 훅들과 함께 이 메서드들을 똑같이 가지고 있습니다.
@@ -241,14 +314,14 @@ test('라우트 트리가 src/app과 일치한다', () => {
 });
 ```
 
-양방향을 모두 보고합니다 — 페이지가 지워진 선언된 라우트, 그리고 트리가 선언한 적 없는 페이지. Next의 컨벤션을 Next와 똑같이 읽습니다: `(group)`과 `@slot` 폴더는 URL 세그먼트를 만들지 않지만 그 아래 페이지는 그대로 라우트로 세고, `(.)` 인터셉트·`_folder`·`route.ts`·`default.tsx`는 자기 pathname이 아예 없습니다. 파일시스템을 읽으므로 별도 엔트리포인트에 있고 브라우저 번들에는 들어가지 않습니다. [자세한 내용은 Next 가이드](./packages/next/README.ko.md#7-트리와-srcapp-어긋남-잡기).
+양방향을 모두 보고합니다 — 페이지가 지워진 선언된 라우트, 그리고 트리가 선언한 적 없는 페이지. Next의 컨벤션을 Next와 똑같이 읽습니다: `(group)`과 `@slot` 폴더는 URL 세그먼트를 만들지 않지만 그 아래 페이지는 그대로 라우트로 세고, `(.)` 인터셉트·`_folder`·`route.ts`·`default.tsx`는 자기 pathname이 아예 없습니다. 파일시스템을 읽으므로 별도 엔트리포인트에 있고 브라우저 번들에는 들어가지 않습니다. [자세한 내용은 Next 가이드](./packages/next/README.ko.md#7-트리와-srcapp-어긋남-잡기). Pages Router에서는 `assertRoutesMatchPagesDir(routes, 'src/pages')`가 `pages/`에 대해 같은 검사를 합니다.
 
 ## 패키지 구성
 
 | 패키지 | 용도 |
 | --- | --- |
 | `@hyeonqyu/typed-router-core` | 트리, 타입, URL 헬퍼 — 프레임워크 독립적 |
-| [`@hyeonqyu/typed-router-next`](./packages/next/README.ko.md) | Next.js App Router |
+| [`@hyeonqyu/typed-router-next`](./packages/next/README.ko.md) | Next.js App Router, 그리고 `/pages`로 Pages Router |
 | [`@hyeonqyu/typed-router-react`](./packages/react/README.ko.md) | React Router 6/7 라이브러리 모드 |
 
 ### React Router 7 framework mode

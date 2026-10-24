@@ -1,12 +1,15 @@
-export { defineRoutes, type CurrentRoute, type TypedRoutes } from './defineRoutes';
+export { attachMetadata, bindRoutes, defineRoutes, type CurrentRoute, type TypedRoutes } from './defineRoutes';
 export type { NavigateArgs, NavigateArgsTuple, NavigateOptions } from './navigation.types';
+export type { BindRoutesOptions, ResolveHref, ResolveHrefRoute } from './resolveHref';
 export type { TypedLinkProps } from './TypedLink';
 
 export {
   METADATA_KEY,
   PathParamsParseError,
+  RouteMismatchError,
   SearchParamsParseError,
   buildHref,
+  children,
   collectRoutes,
   isRouteGroup,
   matchRoute,
@@ -14,10 +17,14 @@ export {
   parseSearchParams,
   resolveMetadata,
   resolveMetadataValue,
+  searchParamKeys,
   toSearchParamsString,
   type AnySchema,
+  type AttachedTree,
   type BuiltinMetadata,
   type CollectedRouteOf,
+  type MetadataPatch,
+  type MetadataPatchWithMeta,
   type MetadataValue,
   type Params,
   type PathParamSchemas,
@@ -27,11 +34,13 @@ export {
   type Pathname,
   type RawPathParams,
   type RouteArgs,
+  type RouteChildren,
   type RouteMatch,
   type RouteMetadata,
   type RouteMetadataOf,
   type RouteNodeOf,
   type RoutePaths,
+  type SearchParamKeysSchema,
   type SearchParams,
   type SearchParamsErrorMode,
 } from '@hyeonqyu/typed-router-core';

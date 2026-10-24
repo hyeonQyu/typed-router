@@ -15,8 +15,10 @@ export default defineConfig({
       // these aliases do. See the stubs for what they stand in for.
       { find: 'next/navigation', replacement: source('./tests/stubs/next-navigation.ts') },
       { find: 'next/link', replacement: source('./tests/stubs/next-link.tsx') },
+      { find: 'next/router', replacement: source('./tests/stubs/next-router.ts') },
 
       { find: '@hyeonqyu/typed-router-next/check', replacement: source('./packages/next/src/check.ts') },
+      { find: '@hyeonqyu/typed-router-next/pages', replacement: source('./packages/next/src/pages/index.ts') },
       { find: '@hyeonqyu/typed-router-next', replacement: source('./packages/next/src/index.ts') },
       { find: '@hyeonqyu/typed-router-react', replacement: source('./packages/react/src/index.ts') },
       { find: '@hyeonqyu/typed-router-core', replacement: source('./packages/core/src/index.ts') },

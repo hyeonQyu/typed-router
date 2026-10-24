@@ -1,3 +1,10 @@
+import {
+  mergeRouteMetadata,
+  type AttachedTree,
+  type MetadataPatch,
+  type MetadataPatchWithMeta,
+  type OnlyRoutePaths,
+} from './attachMetadata';
 import { createRouteTree, type RouteTree } from './createRouteTree';
 import type { GetRouteMetadata, GetRouteNode, RoutePaths } from './path.types';
 import type { GetCollectedRoute } from './path.utils';
@@ -40,6 +47,40 @@ export const defineRoutes = Object.assign(defineRoutesBase, {
     <const TTree extends RouteTreeInputWithMeta<TMetadata, TContext>>(tree: TTree): TypedRoutes<TTree> =>
       create(tree),
 });
+
+/**
+ * Attaches metadata to a tree declared elsewhere, by pathname, without declaring the
+ * tree again. The shared package keeps the structure; each app attaches its own view.
+ *
+ * ```ts
+ * // shared package — structure only
+ * export const accountRoutes = defineRoutes({ info: { _metadata: {} }, activity: { _metadata: {} } });
+ *
+ * // the owning app
+ * export const ia = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+ *   '/info': { title: 'GNB_USER_INFO' },
+ *   '/activity': { title: 'GNB_MY_ACTIVITY' },
+ * });
+ * ```
+ *
+ * Keys are the source's pathnames, so removing a route there breaks every consumer still
+ * attaching to it. Each entry is merged over the source's `_metadata`; routes left out
+ * keep theirs. `paramSchema` and `searchParamsSchema` stay the source's and cannot be set
+ * here. The source is not mutated, and the result is a route tree like any other.
+ */
+export const attachMetadata = <TTree>(source: { routes: TTree }) =>
+  Object.assign(
+    <const TPatch extends MetadataPatch<TTree>>(patch: TPatch & OnlyRoutePaths<TTree, TPatch>): TypedRoutes<AttachedTree<TTree, TPatch>> =>
+      create<AttachedTree<TTree, TPatch>>(mergeRouteMetadata<TTree, TPatch>(source.routes, patch)),
+    {
+      withMeta:
+        <TMetadata extends RouteMetadata, TContext = unknown>() =>
+        <const TPatch extends MetadataPatchWithMeta<TTree, TMetadata, TContext>>(
+          patch: TPatch & OnlyRoutePaths<TTree, TPatch>,
+        ): TypedRoutes<AttachedTree<TTree, TPatch>> =>
+          create<AttachedTree<TTree, TPatch>>(mergeRouteMetadata<TTree, TPatch>(source.routes, patch)),
+    },
+  );
 
 type TreeOf<TRoutes> = TRoutes extends { routes: infer TTree } ? TTree : never;
 

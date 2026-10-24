@@ -1,12 +1,17 @@
 import {
+  children,
   defineRoutes,
   type CollectedRoute,
   type CollectedRouteOf,
   type Params,
   type Pathname,
   type PathParams,
+  type RouteChildren,
   type RouteMetadataOf,
   type SearchParams,
+  type SearchParamsInput,
+  type SearchParamText,
+  searchParamKeys,
 } from '@hyeonqyu/typed-router-core';
 import { routes, typedParamRoutes, type Routes, type TypedParamRoutes } from './fixtures';
 
@@ -225,9 +230,86 @@ type _withMetaIconNarrows = Expect<Equal<Extract<MetaCollectedElem, { path: '/da
 // @ts-expect-error — `icon` is missing on `/settings`, so the union refuses blind access
 void metaRoutes.collected[0].metadata.icon;
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * 9. children() — metadata gone from the type, literals intact
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const topLevel = children(routes.routes);
+const shop = children(routes.routes['(shop)']);
+const products = children(routes.routes['(shop)'].products);
+
+// Route group keys are children like any other — `children` strips metadata, nothing else.
+type _childrenKeepsGroups = Expect<Equal<keyof typeof topLevel, 'home' | '(shop)' | 'search' | 'docs' | 'files' | 'internal'>>;
+
+// The metadata key is gone even though the node declares it.
+type _childrenDropsMetadata = Expect<Equal<keyof typeof products, '[id]'>>;
+
+// A leaf that declares only metadata has no children.
+type _childrenOfLeafIsEmpty = Expect<Equal<keyof ReturnType<typeof children<(typeof routes.routes)['search']>>, never>>;
+
+// Per-node literal inference survives the call: `title` is still the literal, not `string`.
+type _childrenKeepsLiterals = Expect<Equal<(typeof shop)['cart']['_metadata']['title'], 'Cart'>>;
+
+// @ts-expect-error — `_metadata` is not a property of the children view
+void topLevel._metadata;
+
+/**
+ * A union of nodes — what an unchecked `useCurrentRouteNode()` hands back — is stripped
+ * member by member. A non-distributive `Omit` would key off the union's *shared* keys,
+ * which is only `_metadata`, and report the node as having no children at all.
+ */
+type HomeNode = (typeof routes.routes)['home'];
+type ProductsNode = (typeof routes.routes)['(shop)']['products'];
+
+type _childrenDistributesOverUnions = Expect<
+  Equal<RouteChildren<HomeNode | ProductsNode>, RouteChildren<HomeNode> | RouteChildren<ProductsNode>>
+>;
+
+// The member that has children still has them, rather than collapsing to `{}`.
+type _childrenOfUnionKeepsSegments = Expect<Equal<keyof Extract<RouteChildren<HomeNode | ProductsNode>, { '[id]': unknown }>, '[id]'>>;
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 10. searchParamKeys() — key names without a validator
+ * ────────────────────────────────────────────────────────────────────────── */
+
+const keyed = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl' | 'from'>() } },
+});
+
+keyed.buildHref('/warning');
+keyed.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } });
+keyed.buildHref('/warning', { searchParams: { from: ['a', 'b'] } });
+
+// @ts-expect-error — `redirect` is not a declared key
+keyed.buildHref('/warning', { searchParams: { redirect: '/' } });
+
+// Numbers, booleans and bigints are written as their plain text, as `buildHref` already serialises them
+keyed.buildHref('/warning', { searchParams: { redirectUrl: 1, from: [3, 7] } });
+keyed.buildHref('/warning', { searchParams: { redirectUrl: true, from: [1n, 'a', false] } });
+
+// @ts-expect-error — a Date would be written as an ISO string; a pass-through schema doesn't pick that silently
+keyed.buildHref('/warning', { searchParams: { redirectUrl: new Date() } });
+
+// @ts-expect-error — an object would be written as JSON; same reason
+keyed.buildHref('/warning', { searchParams: { from: [{ id: 1 }] } });
+
+// @ts-expect-error — without the keys as a type argument it would accept any key, so it refuses to compile
+searchParamKeys();
+
+type _keysWriteShape = Expect<
+  Equal<SearchParamsInput<typeof keyed.$types.tree, '/warning'>, { redirectUrl?: SearchParamText | SearchParamText[]; from?: SearchParamText | SearchParamText[] }>
+>;
+type _keysReadShape = Expect<Equal<SearchParams<typeof keyed, '/warning'>, { redirectUrl?: string | string[]; from?: string | string[] }>>;
+
 export type {
   _catchAllParam,
   _catchAllReadsAsStrings,
+  _childrenDistributesOverUnions,
+  _childrenDropsMetadata,
+  _childrenKeepsGroups,
+  _childrenKeepsLiterals,
+  _childrenOfLeafIsEmpty,
+  _childrenOfUnionKeepsSegments,
   _collectedMetadataIsNeverUndefined,
   _collectedNarrowsInControlFlow,
   _collectedPathsMatchPathnames,
@@ -241,6 +323,8 @@ export type {
   _dynamicParam,
   _inheritsOneAncestor,
   _inheritsTwoAncestors,
+  _keysReadShape,
+  _keysWriteShape,
   _matchIsNullable,
   _metadataLiteral,
   _metadataViaHelper,
@@ -261,4 +345,4 @@ export type {
   _withMetaIconNarrows,
   _withMetaTitleUnion,
 };
-export { galleryFilters, groupPath, looseCollected, narrowedTitles, organisationalPath, parsedOrg, withMetaTitle };
+export { galleryFilters, groupPath, looseCollected, narrowedTitles, organisationalPath, parsedOrg, products, shop, topLevel, withMetaTitle };

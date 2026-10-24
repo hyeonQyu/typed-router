@@ -1318,7 +1318,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyeonqyu/typed-router-core@npm:^2.1.0, @hyeonqyu/typed-router-core@workspace:*, @hyeonqyu/typed-router-core@workspace:packages/core":
+"@hyeonqyu/typed-router-core@npm:^2.2.0, @hyeonqyu/typed-router-core@workspace:*, @hyeonqyu/typed-router-core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@hyeonqyu/typed-router-core@workspace:packages/core"
   dependencies:
@@ -1336,7 +1336,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyeonqyu/typed-router-next@workspace:packages/next"
   dependencies:
-    "@hyeonqyu/typed-router-core": "npm:^2.1.0"
+    "@hyeonqyu/typed-router-core": "npm:^2.2.0"
     "@types/react": "npm:^19.2.5"
     "@types/react-dom": "npm:^19.2.3"
     next: "npm:^15.1.6"
@@ -1358,7 +1358,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyeonqyu/typed-router-react@workspace:packages/react"
   dependencies:
-    "@hyeonqyu/typed-router-core": "npm:^2.1.0"
+    "@hyeonqyu/typed-router-core": "npm:^2.2.0"
     "@types/react": "npm:^19.2.5"
     "@types/react-dom": "npm:^19.2.3"
     prettier: "npm:^3.7.4"
@@ -5789,6 +5789,23 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "next-example@workspace:examples/next-example"
   dependencies:
+    "@hyeonqyu/typed-router-next": "workspace:*"
+    "@types/node": "npm:^24.10.1"
+    "@types/react": "npm:^19.2.5"
+    "@types/react-dom": "npm:^19.2.3"
+    next: "npm:^15.3.0"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
+    typescript: "npm:^5.9.3"
+    zod: "npm:^3.24.1"
+  languageName: unknown
+  linkType: soft
+
+"next-pages-example@workspace:examples/next-pages-example":
+  version: 0.0.0-use.local
+  resolution: "next-pages-example@workspace:examples/next-pages-example"
+  dependencies:
+    "@hyeonqyu/typed-router-core": "workspace:*"
     "@hyeonqyu/typed-router-next": "workspace:*"
     "@types/node": "npm:^24.10.1"
     "@types/react": "npm:^19.2.5"

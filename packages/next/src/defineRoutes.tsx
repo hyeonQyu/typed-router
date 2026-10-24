@@ -1,5 +1,10 @@
 import {
   createRouteTree,
+  mergeRouteMetadata,
+  type AttachedTree,
+  type MetadataPatch,
+  type MetadataPatchWithMeta,
+  type OnlyRoutePaths,
   type ParsePathParamsOptions,
   type ParseSearchParamsOptions,
   type PathParamsOutput,
@@ -15,6 +20,7 @@ import {
 import type { ReactElement, Ref } from 'react';
 import { useCurrentRouteImpl, useCurrentRouteNodeImpl, useTypedParamsImpl, useTypedRouterImpl, useTypedSearchParamsImpl } from './client';
 import type { NavigateArgsTuple } from './navigation.types';
+import { toResolverHook, type BindRoutesOptions } from './resolveHref';
 import { createTypedLink, type TypedLinkProps } from './TypedLink';
 
 export type CurrentRoute<TTree> = {
@@ -50,16 +56,16 @@ export type TypedRoutes<TTree> = RouteTree<TTree> & {
   $types: { tree: TTree; pathname: RoutePaths<TTree> };
 };
 
-const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
-  const routes = createRouteTree(tree);
-  const untyped = routes as RouteTree<unknown>;
+const bind = <TTree,>(source: RouteTree<TTree>, options?: BindRoutesOptions<TTree>): TypedRoutes<TTree> => {
+  const untyped = source as RouteTree<unknown>;
+  const useResolveHref = toResolverHook(options);
 
   // The hooks below live behind a `'use client'` boundary. They are only *referenced*
   // here, never called, so this module stays importable from server components.
   return {
-    ...routes,
+    ...source,
 
-    TypedLink: createTypedLink<TTree>(),
+    TypedLink: createTypedLink<TTree>(untyped, useResolveHref),
 
     useCurrentRoute: () => useCurrentRouteImpl(untyped) as CurrentRoute<TTree>,
 
@@ -83,11 +89,38 @@ const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => {
     /** The current search params, validated and coerced by the route's schema. */
     useTypedSearchParams: (pathname, options) => useTypedSearchParamsImpl(untyped, pathname, options) as never,
 
-    useTypedRouter: () => useTypedRouterImpl() as TypedRouter<TTree>,
+    useTypedRouter: () => useTypedRouterImpl(untyped, useResolveHref) as TypedRouter<TTree>,
 
     $types: {} as TypedRoutes<TTree>['$types'],
   };
 };
+
+/**
+ * Gives a route tree built elsewhere — core's `defineRoutes`, core's `attachMetadata`, a
+ * shared package — the hooks and `TypedLink`, without declaring it again.
+ *
+ * ```ts
+ * import { bindRoutes } from '@hyeonqyu/typed-router-next';
+ * import { routes as shared } from '@acme/shop-routes'; // declared with core
+ *
+ * export const routes = bindRoutes(shared);
+ * ```
+ *
+ * The source's tree, paths and parsers are reused as they are, not rebuilt.
+ *
+ * Pass `useResolveHref` when some routes navigate elsewhere — see {@link BindRoutesOptions}.
+ */
+// The tree is read off the source (`TSource['routes']`) rather than inferred back out of
+// `RouteTree<TTree>`: solving `TTree` from members like `paths: RoutePaths<TTree>[]` is what
+// costs instantiations in proportion to the tree, and gives up on a large one (TS2589 / TS2590).
+// `NoInfer`: the tree comes from `source` alone, so a loosely typed resolver cannot widen it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- any tree is accepted; its type comes from `routes`
+export const bindRoutes = <TSource extends RouteTree<any>>(
+  source: TSource,
+  options?: BindRoutesOptions<NoInfer<TSource['routes']>>,
+): TypedRoutes<TSource['routes']> => bind<TSource['routes']>(source, options);
+
+const create = <TTree,>(tree: TTree): TypedRoutes<TTree> => bind(createRouteTree(tree));
 
 /**
  * Declares a route tree and returns everything Next.js needs to navigate it type-safely.
@@ -114,3 +147,32 @@ export const defineRoutes = Object.assign(<const TTree extends RouteTreeInput>(t
     <const TTree extends RouteTreeInputWithMeta<TMetadata, TContext>>(tree: TTree): TypedRoutes<TTree> =>
       create(tree),
 });
+
+/**
+ * Attaches metadata to a tree declared elsewhere — typically a shared package that
+ * declares only the structure — by pathname, and returns the full adapter on the result,
+ * so the hooks and `TypedLink` see it like any other.
+ *
+ * ```ts
+ * export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+ *   '/info': { title: 'GNB_USER_INFO' },
+ * });
+ * ```
+ *
+ * Keys are the source's pathnames. Each entry is merged over the source's `_metadata`;
+ * routes left out keep theirs, and `paramSchema` / `searchParamsSchema` stay the
+ * source's. The source is not mutated.
+ */
+export const attachMetadata = <TTree,>(source: { routes: TTree }) =>
+  Object.assign(
+    <const TPatch extends MetadataPatch<TTree>>(patch: TPatch & OnlyRoutePaths<TTree, TPatch>): TypedRoutes<AttachedTree<TTree, TPatch>> =>
+      create<AttachedTree<TTree, TPatch>>(mergeRouteMetadata<TTree, TPatch>(source.routes, patch)),
+    {
+      withMeta:
+        <TMetadata extends RouteMetadata, TContext = unknown>() =>
+        <const TPatch extends MetadataPatchWithMeta<TTree, TMetadata, TContext>>(
+          patch: TPatch & OnlyRoutePaths<TTree, TPatch>,
+        ): TypedRoutes<AttachedTree<TTree, TPatch>> =>
+          create<AttachedTree<TTree, TPatch>>(mergeRouteMetadata<TTree, TPatch>(source.routes, patch)),
+    },
+  );

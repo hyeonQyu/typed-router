@@ -296,6 +296,86 @@ meta.accessible;   // boolean — not the `(ctx: AppContext) => boolean` the tre
 
 ---
 
+### 4.1 Walking one level of the tree
+
+`paths` and `collected` flatten the whole tree. A menu level, a breadcrumb's siblings and a section
+index are the other shape — the children of *one* node — and that is where `_metadata` gets in the
+way: `Object.keys(node)` lists it alongside the real children, so the menu grows a phantom entry.
+`children(node)` returns the children and nothing else, in value and in type.
+
+```ts
+import { children } from '@hyeonqyu/typed-router-core';   // re-exported by both adapters
+
+const support = routes.routes.support;
+
+Object.keys(support);            // ['_metadata', 'ask', 'notice'] — metadata leaks in
+Object.keys(children(support));  // ['ask', 'notice']
+
+Object.entries(children(support)).map(([key, node]) => ({ key, title: node._metadata.title }));
+```
+
+It returns an object, not an array, so `keys` / `values` / `entries` all keep working; the type
+`RouteChildren<TNode>` drops `_metadata` from the node, so each child keeps the literal types it was
+declared with and no cast is needed. It is distributive: a union of nodes — what an unchecked
+`useCurrentRouteNode()` returns — is stripped member by member, instead of collapsing to the keys
+its members share (which is only `_metadata`). A node typed loosely enough to have a string index
+signature, such as `match(url)?.node`, has no `_metadata` key to remove and stays as loose as it
+was. Route group keys `(name)` are children like any
+other — the helper strips metadata and decides nothing else. The result is frozen and cached per
+declared node, so two calls on the same node of a `defineRoutes` tree return the same object and it
+is safe in a dependency array.
+The tree itself is untouched: `_metadata` stays an ordinary enumerable property, so a node still
+survives a spread, a `structuredClone` and a `toEqual`.
+
+---
+
+### 4.2 Sharing a tree between apps
+
+In a monorepo where app A links into app B, A needs B's structure (pathnames, dynamic segments,
+their schemas) but must not receive B's metadata (translation-key types, assets, lazily loaded
+pages). Declare the structure once in a shared package, and let the owning app attach its metadata
+by pathname with `attachMetadata(source)` — exported by core and by both adapters, each returning
+its own routes object:
+
+```ts
+// shared package — structure only
+export const accountRoutes = defineRoutes({
+  info:     { _metadata: {} },
+  activity: { _metadata: {}, quest: { _metadata: {} } },
+});
+
+// the owning app
+import { attachMetadata } from '@hyeonqyu/typed-router-react';
+
+export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+  '/info':           { title: 'GNB_USER_INFO', element: <UserInfo /> },
+  '/activity':       { title: 'GNB_MY_ACTIVITY' },
+  '/activity/quest': { title: 'GNB_MY_QUESTS' },
+});
+
+routes.getMetadata('/info').title;  // 'GNB_USER_INFO' — literal
+routes.paths;                       // exactly accountRoutes.paths
+```
+
+Rules:
+
+- Keys are `RoutePaths` of the source — the pathname as navigated, so a route under `(auth)` is
+  keyed `/login`, not `/(auth)/login`. An undeclared pathname is a compile error (inline or in a
+  patch declared first and passed by name) and throws at runtime.
+- Each entry is merged over the source's `_metadata` (`{ ...source, ...entry }`); routes left out
+  keep the source's metadata object. There is no exhaustive variant.
+- `paramSchema` and `searchParamsSchema` always come from the source. Setting either is a compile
+  error and throws at runtime.
+- The source is not mutated; any number of consumers can attach to the same shared tree.
+- `.withMeta<TMetadata, TContext>()` enforces the contract on every entry. Without it, each entry is
+  inferred per route, as with `defineRoutes`.
+- The result is a full routes object: `getMetadata`, `match`, `collected`, `children()`, the hooks
+  and `toRouteObjects` all see the attached metadata.
+- Depth: the full `collected` union of an attached tree compiles to 29 levels, where a declared tree
+  reaches 31. `paths` and per-route lookups are unaffected at 30.
+
+---
+
 ## 5. Building URLs
 
 `routes.buildHref(path, args)` is the only correct way to produce a URL. The first argument is a
@@ -368,6 +448,27 @@ routes.parseSearchParams('/products', new URLSearchParams('page=3&tags=a&tags=b'
 The read side returns the schema's **output** type (defaults applied, transforms run); the write
 side (`buildHref`, `push`, `TypedLink`) takes the **input** type — which is why a `.default()`
 field is optional to write but always present to read.
+
+**Naming keys without a validator.** A route that only passes a few keys through needs their names,
+not validation. `searchParamKeys<'a' | 'b'>()` is a pass-through Standard Schema for exactly that:
+every key optional, any other key a compile error. Writing takes a string, number, boolean or
+bigint (or a list of them) as plain text — not a `Date` or an object, whose ISO/JSON form it won't
+pick silently. Reading returns `string | string[]` (the raw query shape). Nothing is coerced,
+defaulted or rejected, so reading returns the raw values — it is safe on
+any route, and swapping in a real schema later is a one-line change. The keys must be given as a type
+argument; `searchParamKeys()` without one does not compile, rather than accepting any key.
+
+```ts
+import { defineRoutes, searchParamKeys } from '@hyeonqyu/typed-router-core'; // re-exported by both adapters
+
+const routes = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl'>() } },
+});
+
+routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); // '/warning?redirectUrl=%2Fjoin%3Fa%3D1'
+routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ unknown key
+routes.parseSearchParams('/warning', { redirectUrl: '/join' });              // { redirectUrl: '/join' } — as-is
+```
 
 **What the write side puts in the URL.** Every value is encoded by what a URL can carry back:
 
@@ -740,6 +841,67 @@ folder names. The skipped conventions above never need listing.
 Opt-in on purpose: a check that blocks the build gets switched off, while one that fails in the
 project's own test suite is tuned by the person who knows the app.
 
+### 8.7 A tree declared elsewhere — `bindRoutes`
+
+A tree declared with core's `defineRoutes` — in a shared package, framework-free so any app can
+depend on it — gets this adapter's hooks and `TypedLink` from `bindRoutes`, without being declared a
+second time:
+
+```ts
+import { bindRoutes } from '@hyeonqyu/typed-router-next';
+import { routes as shared } from '@acme/shop-routes';
+
+export const routes = bindRoutes(shared); // same tree, paths and parsers; hooks added
+```
+
+Any core route tree works, including one returned by core's `attachMetadata`. When the app attaches
+metadata as well, this package's own `attachMetadata(shared)(patch)` does both in one step.
+
+A route that is in the tree but served elsewhere (a blog on another domain) is redirected with
+`bindRoutes(tree, { useResolveHref })`. `useResolveHref` is a hook, so it can read the locale from
+context. It returns `({ pathname, metadata, params, searchParams, hash }) => string | undefined`.
+`push`, `replace`, `prefetch` and `TypedLink` use the returned URL, or the route's own href on
+`undefined`, and `prefetch` skips absolute URLs. The library reads no metadata key. Return a stable
+function (`useCallback`). With the option set, render `TypedLink` from client components. The
+`/pages` entry's `bindRoutes` takes the same option.
+
+### 8.8 The Pages Router — `@hyeonqyu/typed-router-next/pages`
+
+The same surface, backed by `next/router`: `defineRoutes`, `attachMetadata`, `bindRoutes`,
+`TypedLink`, `useTypedRouter`, `useTypedParams`, `useTypedSearchParams`, `useTypedPathname`,
+`useCurrentRoute`, `useCurrentRouteNode`, and the same core re-exports. It never loads the package
+root, so `next/navigation` stays out of a Pages Router bundle — a Pages Router app imports only from
+`/pages`.
+
+```ts
+import { bindRoutes } from '@hyeonqyu/typed-router-next/pages';
+import { routes as shared } from '@acme/shop-routes';
+
+export const { TypedLink, useTypedRouter, useTypedParams, useTypedSearchParams, useCurrentRoute } = bindRoutes(shared);
+```
+
+Keys mirror `pages/`: `pages/products/[id].tsx` is `products: { '[id]': { _metadata: {} } }`, and
+`pages/index.tsx` is `''`. The differences from the App Router:
+
+- **The current route is `router.pathname`**, the page Next rendered, rather than a match of the URL,
+  so rewrites cannot mislead it. `RouteMismatchError` works as in §8.4.
+- **`<RouterReady>` replaces `<Suspense>`.** A page without `getServerSideProps` is prerendered with
+  an empty `router.query`. `useTypedSearchParams` throws `RouteNotReadyError` until `isReady`;
+  `useTypedParams` throws it only while a required segment is still missing (a statically optimized
+  dynamic page before hydration — a `getStaticProps` page already has its segments). Wrap such
+  components in `<RouterReady fallback={…}>`, or gate them on `useRouterReady()`. Never gate on
+  `router.isReady` itself: on a statically rendered page without a query string it is `false` in the
+  HTML and `true` on the first client render, which fails hydration. `getServerSideProps` pages need
+  no boundary.
+- **`push` / `replace` also take `shallow`**, and return `next/router`'s `Promise<boolean>`.
+  `refresh()` re-navigates to the current URL, since the Pages Router has none of its own.
+
+The drift check's counterpart is `assertRoutesMatchPagesDir(routes, 'src/pages')` /
+`findPagesDirDrift`, reporting `{ missingFromPagesDir, missingFromTree, inSync }` and throwing
+`PagesDirDriftError`. It reads `pages/` as Next does: every page file is a route, `index` serves its
+folder, `_app`, `_document`, `_error`, `404`, `500` and `api/` at the root are skipped, and
+`(group)`, `@slot` and `_folder` are literal segments — they are App Router conventions.
+
 ---
 
 ## 9. React Router 6/7 (library mode)
@@ -956,7 +1118,7 @@ a `defineRoutes` result:
 import {
   buildHref, collectRoutes, matchRoute, parseSearchParams,
   collectRawSearchParams, toSearchParamsString,
-  parseSegment, splitPath, isRouteGroup, METADATA_KEY,
+  parseSegment, splitPath, isRouteGroup, children, searchParamKeys, METADATA_KEY,
 } from '@hyeonqyu/typed-router-core';
 
 buildHref('/products/[id]', { params: { id: 7 }, searchParams: { page: 2 } }); // untyped path
@@ -968,6 +1130,7 @@ toSearchParamsString({ page: 2, tags: ['a', 'b'] });               // '?page=2&t
 toSearchParamsString({ f: { min: 1, max: 9 } });                   // '?f=%7B%22min%22%3A1%2C%22max%22%3A9%7D'
 splitPath('/products/[id]').map(parseSegment);
 isRouteGroup('(account)');                                          // true
+children(routes.routes.products);                                   // children only, no `_metadata`
 METADATA_KEY;                                                       // '_metadata'
 ```
 
@@ -1079,22 +1242,23 @@ On the returned `routes` object, in **every** package:
 `prefetch` / `back` / `forward` / `refresh`), `useCurrentRoute`, `useCurrentRouteNode(pathname?)`,
 `useTypedParams(pathname, options?)`, `useTypedPathname`, `useTypedSearchParams` — all client-only.
 The pathname `useTypedParams` takes, and the one `useCurrentRouteNode` optionally takes, are checked
-against the route the live URL matched; a mismatch throws `RouteMismatchError` (§8.4). `-react` adds
+against the route the live URL matched; a mismatch throws `RouteMismatchError` (§8.4). `-next/pages`
+has the same members backed by `next/router` (§8.8). `-react` adds
 `toRouteObjects()` and `<TypedRoutes />`, and its `prefetch` is a no-op while `refresh` is
 `navigate(0)`.
 
-**Exported functions:** re-exported by **every** package — `buildHref`, `matchRoute`,
-`collectRoutes`, `parseSearchParams`, `parsePathParams`, `toSearchParamsString`, `resolveMetadata`,
+**Exported functions:** re-exported by **every** package — `buildHref`, `children`, `matchRoute`,
+`collectRoutes`, `parseSearchParams`, `searchParamKeys`, `parsePathParams`, `toSearchParamsString`, `resolveMetadata`,
 `resolveMetadataValue`, `isRouteGroup`, `METADATA_KEY`, `SearchParamsParseError`,
 `PathParamsParseError`, `RouteMismatchError`, `assertRouteMatches`, `isSameOrAncestorRoute`.
 **Core only**
-(not re-exported by the adapters) — `createRouteTree`, `collectRawSearchParams`, `parseSegment`,
-`splitPath`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
+(not re-exported by the adapters) — `createRouteTree`, `mergeRouteMetadata`, `collectRawSearchParams`,
+`parseSegment`, `splitPath`. **Each package its own** — `defineRoutes`, `attachMetadata`; `bindRoutes` on `-next` and `-next/pages`. **`-next/pages` only** — `RouteNotReadyError`, `RouterReady`, `useRouterReady`. **React only** — `toRouteObjects`, `toReactRouterSegment`.
 
 **Exported types:** `Pathname`, `SearchParams`, `Params`, `RouteNodeOf`, `RouteMetadataOf`,
-`CollectedRouteOf`, `RouteArgs`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
+`CollectedRouteOf`, `RouteArgs`, `RouteChildren`, `AttachedTree`, `MetadataPatch`, `MetadataPatchWithMeta`, `PathParams`, `PathParamsOutput`, `RouteMatch`, `RoutePaths`,
 `RouteMetadata`, `BuiltinMetadata`, `MetadataValue`, `ResolvedMetadata`, `ResolvableMetadataKey`,
-`UseCurrentRouteNode`, `AnySchema`, `SearchParamsErrorMode`,
+`UseCurrentRouteNode`, `AnySchema`, `SearchParamKeysSchema`, `SearchParamsErrorMode`,
 `PathParamsErrorMode`, `RawPathParams`, `PathParamSchemas`,
 `CurrentRoute<TTree>`, `TypedRoutes<TTree>`, `TypedLinkProps`, `NavigateArgs`, `NavigateArgsTuple`,
 `NavigateOptions`.
@@ -1102,7 +1266,9 @@ against the route the live URL matched; a mismatch throws `RouteMismatchError` (
 **`@hyeonqyu/typed-router-next/check`** — a separate, Node-only entry point (it reads the
 filesystem, so it never belongs in application code): `assertRoutesMatchAppDir(routes, appDir,
 options?)`, `findRouteDrift(routes, appDir, options?)`, `RouteDriftError`, and the types
-`RouteDriftReport`, `FindRouteDriftOptions`, `RoutesLike`. Nothing here is re-exported from the main
+`RouteDriftReport`, `FindRouteDriftOptions`, `RoutesLike` — and for the Pages Router
+`assertRoutesMatchPagesDir`, `findPagesDirDrift`, `PagesDirDriftError`, `PagesDirDriftReport`,
+`FindPagesDirDriftOptions`. Nothing here is re-exported from the main
 entry, and there is no React Router equivalent — `toRouteObjects()` makes one unnecessary.
 
 The adapters re-export only a **subset** of core: `RawSearchParams`, `ParseSearchParamsOptions`,
@@ -1114,7 +1280,7 @@ among them — import those from core, or use `ReturnType<typeof routes.useTyped
 
 ## 14. Runnable examples
 
-Three apps in the repository. The first two declare the *same* tree, and their `Nav.tsx` and
+Four apps in the repository. `next-example` and `react-example` declare the *same* tree, and their `Nav.tsx` and
 `RouteInspector.tsx` are identical line for line apart from the Next copies' `'use client'`
 directive and their header comments — proof that the API is identical across adapters. Every page
 prints what the library resolved for the live URL with the runtime `typeof` beside it, so the type
@@ -1123,6 +1289,9 @@ claims are visible rather than asserted. Run `yarn workspace next-example dev` (
 `yarn workspace react-router-framework-example dev` (:5174).
 
 - `examples/next-example/src/routes.ts` — the Next.js declaration
+- `examples/next-pages-example/src/routes.ts` — the Pages Router: a tree declared with core in
+  `src/shared/routes.ts`, bound with `bindRoutes` from `-next/pages`, with `<RouterReady>` around its
+  statically optimized pages (`yarn workspace next-pages-example dev`, :3001)
 - `examples/react-example/src/routes.tsx` — the React Router declaration, `element` per node
 - `examples/react-example/src/App.tsx` — `toRouteObjects()` nested under a hand-written shell, with
   an index redirect and a `*` catch-all the tree knows nothing about

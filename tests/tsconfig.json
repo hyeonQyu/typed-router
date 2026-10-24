@@ -12,7 +12,8 @@
       "@hyeonqyu/typed-router-core": ["./packages/core/src"],
       "@hyeonqyu/typed-router-react": ["./packages/react/src"],
       "@hyeonqyu/typed-router-next": ["./packages/next/src"],
-      "@hyeonqyu/typed-router-next/check": ["./packages/next/src/check"]
+      "@hyeonqyu/typed-router-next/check": ["./packages/next/src/check"],
+      "@hyeonqyu/typed-router-next/pages": ["./packages/next/src/pages"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"]

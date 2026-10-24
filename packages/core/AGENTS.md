@@ -25,7 +25,8 @@ tests, link generation for emails or sitemaps, or when writing your own adapter.
 
 `zod` is an **optional** peer dependency (`^3.24.0 || ^4.0.0`). Schemas are matched structurally, so
 Zod v3, Zod v4 and any [Standard Schema](https://standardschema.dev) validator work, and a tree with no
-schemas needs no validator at all. Never import `zod` inside library-facing types.
+schemas needs no validator at all — and a route that only names its query keys can use
+`searchParamKeys<'a' | 'b'>()` instead of a validator. Never import `zod` inside library-facing types.
 
 ## Segment key syntax (mirrors Next.js)
 
@@ -314,6 +315,7 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | --- | --- | --- |
 | `defineRoutes` | `(tree) => TypedRoutes<TTree>` | Entry point. Declares the IA and returns the typed routes object. |
 | `defineRoutes.withMeta` | `<TMetadata, TContext>() => (tree) => TypedRoutes<TTree>` | Same, constraining **every** `_metadata` block in the tree to `TMetadata & BuiltinMetadata<TContext>`, at any depth. Per-node inference still holds: literal types and fields outside `TMetadata` survive. A node with no `_metadata` is organisational, so nothing is enforced on it. |
+| `attachMetadata` | `(source) => (patch) => TypedRoutes<AttachedTree<TTree, TPatch>>`, also `.withMeta<TMetadata, TContext>()(patch)` | Attaches metadata to a tree declared elsewhere (a shared package), by pathname, without redeclaring it. Keys are the source's `RoutePaths` — an undeclared one is a compile error and throws. Each entry merges over the source's `_metadata`; routes left out keep theirs. `paramSchema` / `searchParamsSchema` always come from the source and cannot be set. The source is not mutated. The result is a full routes object. `source` is any `defineRoutes` result, from any package. |
 | `routes.routes` | `TTree` | The declared tree, structurally frozen. What adapters consume. |
 | `routes.paths` | `readonly RoutePaths<TTree>[]` | Every navigable pathname at runtime. |
 | `routes.collected` | `readonly GetCollectedRoute<TTree>[]` | `{ path, segments, node, metadata }` per route, one union member each — `path` stays a literal and `metadata` stays typed while enumerating. |
@@ -334,6 +336,8 @@ your navigation functions inherit the same required/optional/forbidden argument 
 | `parsePathParams` | `(schemas, raw, options?, path?) => Record<string, unknown>` | Standalone path-param parser. `schemas` is `Record<segmentName, schema>`. |
 | `collectRawSearchParams` | `(iterable) => RawSearchParams` | Folds `URLSearchParams`-like entries, repeated keys → arrays. |
 | `toSearchParamsString` | `(obj, path?) => string` | `'?a=1&b=2'`. Skips `undefined`/`null`, repeats arrays, ISO-serialises `Date`, JSON-encodes objects and nested arrays, throws on anything unserialisable. |
+| `searchParamKeys` | `<TKey extends string>() => SearchParamKeysSchema<TKey>` | A pass-through Standard Schema for a `searchParamsSchema` slot when a route only names its query keys: each key optional, written as `string \| number \| boolean \| bigint` (or a list) and read back as `string \| string[]`, any other key a compile error. Validates nothing — no coercion, defaults or rejection — so reading returns the raw values. Keys go in the type argument; calling it without one does not compile. |
+| `children` | `(node) => RouteChildren<TNode>` | One node's child routes, with `_metadata` gone from the value **and** the type — what a menu level, a breadcrumb's siblings or a section index needs. Returns an object, so `keys`/`values`/`entries` all work. `(group)` keys are children like any other. Distributive over a union of nodes, so an unchecked `useCurrentRouteNode()` result is stripped member by member rather than collapsing. Frozen, and cached per node of a declared (frozen) tree, so two calls on the same declared node return the same object. |
 | `parseSegment` / `splitPath` / `isRouteGroup` | — | Segment classification helpers. |
 | `SearchParamsParseError` | `class extends Error` | Thrown under `onError: 'throw'`; `.cause` holds the validator's error. |
 | `PathParamsParseError` | `class extends Error { param, cause }` | The path-param equivalent; `.param` names the segment that failed. |
@@ -352,8 +356,10 @@ side). The tree argument defaults to `unknown`, under which every segment is the
 `paramSchema`s reflected, or use `Params<…>` / `PathParamsInput<…>`, which take the tree already.
 Also exported: `BuiltinMetadata<TContext>`, `MetadataValue<T, C>`,
 `RouteMatch`, `CollectedRoute`, `SegmentPattern`, `RouteParams`, `BuildHrefArgs`, `RawSearchParams`,
-`SearchParamsErrorMode`, `ParseSearchParamsOptions`, `RawPathParams`, `PathParamSchemas`,
+`SearchParamsErrorMode`, `ParseSearchParamsOptions`, `SearchParamKeysSchema`, `SearchParamKeysValue`, `SearchParamKeysInput`, `SearchParamText`, `RawPathParams`, `PathParamSchemas`,
 `PathParamsErrorMode`, `ParsePathParamsOptions`, `AnySchema`, `ParsableSchema`, `InferSchemaInput`,
 `InferSchemaOutput`, `RouteTreeInput`, `RouteNodeInput`, `RouteTreeInputWithMeta`,
 `RouteNodeInputWithMeta`, `RouteMetadata`, `RouteGroupKey`, `MetadataKey`, `SegmentKeys`,
-`HasRequiredKeys`, `Simplify`, `PathParamValue`, `TypedRoutes`, `RouteTree`.
+`HasRequiredKeys`, `Simplify`, `PathParamValue`, `RouteChildren`, `TypedRoutes`, `RouteTree`,
+`AttachedTree`, `MetadataPatch`, `MetadataPatchWithMeta`, `OnlyRoutePaths`. `mergeRouteMetadata(tree, patch)` is the
+runtime half of `attachMetadata` that the adapters wrap; app code should not need it.

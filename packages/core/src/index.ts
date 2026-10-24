@@ -1,5 +1,13 @@
+export {
+  mergeRouteMetadata,
+  type AttachedTree,
+  type MetadataPatch,
+  type MetadataPatchWithMeta,
+  type OnlyRoutePaths,
+} from './attachMetadata';
 export { createRouteTree, resolveMetadata, resolveMetadataValue, type RouteTree } from './createRouteTree';
 export {
+  attachMetadata,
   defineRoutes,
   type CollectedRouteOf,
   type Params,
@@ -59,8 +67,13 @@ export {
   SearchParamsParseError,
   collectRawSearchParams,
   parseSearchParams,
+  searchParamKeys,
   type ParseSearchParamsOptions,
   type RawSearchParams,
+  type SearchParamKeysInput,
+  type SearchParamKeysSchema,
+  type SearchParamKeysValue,
+  type SearchParamText,
   type SearchParamsErrorMode,
 } from './searchParams.utils';
 
@@ -82,3 +95,5 @@ export type {
   SearchParamsInput,
   SearchParamsOutput,
 } from './tree.types';
+
+export { children, type RouteChildren } from './tree.utils';

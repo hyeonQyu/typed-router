@@ -18,6 +18,51 @@ export type ParseSearchParamsOptions = {
 
 export type RawSearchParams = Record<string, string | string[]>;
 
+/** The shape a raw query has, narrowed to declared keys: each one optional, a repeated key a list. */
+export type SearchParamKeysValue<TKey extends string> = Partial<Record<TKey, string | string[]>>;
+
+/** A value navigation writes as its plain text form — `String(value)`, nothing structured. */
+export type SearchParamText = string | number | boolean | bigint;
+
+/**
+ * What navigation takes for declared keys. Wider than {@link SearchParamKeysValue}:
+ * numbers, booleans and bigints are written as their plain text, but reading them
+ * back still yields text, since nothing coerces the URL.
+ */
+export type SearchParamKeysInput<TKey extends string> = Partial<Record<TKey, SearchParamText | SearchParamText[]>>;
+
+/** The Standard Schema {@link searchParamKeys} returns — declares key names, validates nothing. */
+export type SearchParamKeysSchema<TKey extends string> = {
+  readonly ['~standard']: {
+    readonly version: 1;
+    readonly vendor: 'typed-router';
+    readonly validate: (value: unknown) => { value: SearchParamKeysValue<TKey> };
+    readonly types?: { readonly input: SearchParamKeysInput<TKey>; readonly output: SearchParamKeysValue<TKey> };
+  };
+};
+
+const passThrough = Object.freeze({
+  '~standard': Object.freeze({ version: 1, vendor: 'typed-router', validate: (value: unknown) => ({ value }) }),
+});
+
+/**
+ * A `searchParamsSchema` for a route that only needs to name the keys it accepts.
+ *
+ * Navigation then takes those keys — each optional, each a string, number, boolean
+ * or bigint, or a list of them — and rejects any other. Validation is a pass-through:
+ * nothing is coerced, defaulted or rejected, so reading the query back returns the
+ * raw text, `string | string[]`. It is a plain Standard
+ * Schema, so swapping in a real schema later is a one-line change.
+ *
+ * The keys must be given as a type argument; calling it without one is a compile
+ * error rather than a schema that silently accepts any key.
+ */
+export const searchParamKeys = <TKey extends string = never>(
+  ..._missingKeys: [TKey] extends [never]
+    ? [error: "pass the accepted keys as a type argument, e.g. searchParamKeys<'page' | 'sort'>()"]
+    : []
+): SearchParamKeysSchema<TKey> => passThrough as unknown as SearchParamKeysSchema<TKey>;
+
 /** Collects a `URLSearchParams`-like object, folding repeated keys into arrays. */
 export const collectRawSearchParams = (source: Iterable<[string, string]>): RawSearchParams => {
   const raw: RawSearchParams = {};

@@ -9,15 +9,15 @@ Route paths and search params are usually just strings — the compiler cannot t
 typed-router turns your route map into a single typed object. You declare it once; pathnames, path params, search-param types, navigation, and (for React Router) the router configuration itself are all derived from that one declaration and checked by the compiler.
 
 ```bash
-npm install @hyeonqyu/typed-router-next zod   # Next.js App Router
+npm install @hyeonqyu/typed-router-next zod   # Next.js App Router or Pages Router
 npm install @hyeonqyu/typed-router-react zod  # React Router
 ```
 
-`zod` is optional — only routes that declare a search-param schema need it, and any [Standard Schema](https://standardschema.dev) validator works too.
+`zod` is optional — only routes that validate their search params need it, any [Standard Schema](https://standardschema.dev) validator works too, and a route that only names its keys needs none ([`searchParamKeys`](#naming-keys-without-a-validator)).
 
 **Already know your stack?** Each guide is self-contained — read only yours:
 
-- **[Next.js App Router →](./packages/next/README.md)**
+- **[Next.js App Router →](./packages/next/README.md)** · [Pages Router →](./packages/next/README.md#9-the-pages-router)
 - **[React Router →](./packages/react/README.md)**
 
 The rest of this page explains the ideas both guides build on.
@@ -111,6 +111,23 @@ router.push('/products', { params: { id: 1 } });                // ❌ no dynami
 ```
 
 Path params (`params`) and search params (`searchParams`) are always separate arguments, so it's never ambiguous which one fills the URL and which one fills the query string.
+
+### Naming keys without a validator
+
+Plenty of routes take a few query keys and pass them straight through — the point of declaring them is the names, not validation. `searchParamKeys` declares exactly that, with no schema library:
+
+```ts
+import { defineRoutes, searchParamKeys } from '@hyeonqyu/typed-router-core';
+
+export const routes = defineRoutes({
+  warning: { _metadata: { searchParamsSchema: searchParamKeys<'redirectUrl'>() } },
+});
+
+routes.buildHref('/warning', { searchParams: { redirectUrl: '/join?a=1' } }); // '/warning?redirectUrl=%2Fjoin%3Fa%3D1'
+routes.buildHref('/warning', { searchParams: { redirect: '/' } });           // ❌ unknown key
+```
+
+Every key is optional. Writing takes a string, number, boolean or bigint, or a list of them, and writes each as its plain text; a `Date` or an object is a compile error, because turning it into an ISO string or JSON is a choice a pass-through shouldn't make silently. Reading returns `string | string[]` — the shape a raw query already has. Nothing is coerced, defaulted or rejected, so a number written as `1` reads back as `'1'`, and the helper is safe on any route. It is a plain Standard Schema, so moving to a real one later is a one-line change. The keys go in the type argument; `searchParamKeys()` without one is a compile error rather than a schema that quietly accepts any key.
 
 ## Reading params back
 
@@ -208,6 +225,62 @@ routes.getMetadata('/home').badge;   // 'new'  — the contract is a floor, not 
 
 A node with no `_metadata` at all is organisational rather than a route, so the contract has nothing to enforce on it.
 
+### Walking one level of the tree
+
+`paths` and `collected` flatten the whole tree. A menu level, a breadcrumb's siblings and a section index are the other shape — the children of *one* node — and reaching for `Object.values(node)` there hands back the `_metadata` block alongside the real children, which renders as a phantom entry. `children()` returns the children and nothing else:
+
+```ts
+import { children } from '@hyeonqyu/typed-router-core';
+
+const support = routes.routes.support;
+
+Object.keys(support);              // ['_metadata', 'ask', 'notice'] — metadata leaks in
+Object.keys(children(support));    // ['ask', 'notice']
+
+Object.entries(children(support)).map(([key, node]) => ({
+  key,
+  title: node._metadata.title,     // typed per node, no cast
+}));
+```
+
+It returns an object rather than an array, so `keys`, `values` and `entries` all keep working, and the type — `RouteChildren<TNode>` — drops `_metadata` from the node while each child keeps the literal types it was declared with. A union of nodes, which is what an unchecked `useCurrentRouteNode()` gives you, is stripped member by member rather than collapsing to the keys they happen to share. Route group keys `(name)` are children like any other: they organise the tree, so what a group means for a given menu is yours to decide.
+
+The tree itself is untouched — `_metadata` stays an ordinary enumerable property, so a node still survives a spread, a `structuredClone` and a `toEqual`. Calling `children()` twice on the same node of a declared tree returns the same frozen object, so the result can sit in a dependency array without re-rendering.
+
+### Sharing a tree between apps
+
+In a monorepo, app A links into app B, and those links should type-check like any in-app link. What A needs from B is the structure: pathnames, dynamic segments, their schemas. What A must not receive is B's metadata: its translation-key types, its assets, its lazily loaded pages. So declare the structure once, in a shared package, and let the owning app attach its metadata by pathname:
+
+```ts
+// shared package — structure only, so any app can depend on it
+export const accountRoutes = defineRoutes({
+  info:     { _metadata: {} },
+  activity: { _metadata: {}, quest: { _metadata: {} } },
+});
+
+// the owning app
+import { attachMetadata } from '@hyeonqyu/typed-router-react'; // or -next, or -core
+
+export const routes = attachMetadata(accountRoutes).withMeta<{ title: TranslationKey }>()({
+  '/info':           { title: 'GNB_USER_INFO', element: <UserInfo /> },
+  '/activity':       { title: 'GNB_MY_ACTIVITY' },
+  '/activity/quest': { title: 'GNB_MY_QUESTS' },
+});
+
+routes.getMetadata('/info').title;  // 'GNB_USER_INFO' — the literal, as with withMeta
+routes.paths;                       // exactly accountRoutes.paths
+```
+
+- **The keys are the shared tree's pathnames.** One it does not declare is a compile error, so removing a route from the shared tree breaks every app still attaching metadata to it — the check the second copy of the tree never had.
+- **The result is a route tree like any other.** `getMetadata`, `match`, `collected`, `children()`, the hooks and — in React — `toRouteObjects` all read the attached metadata.
+- **Each entry is merged over the shared `_metadata`.** A route you leave out keeps the shared one. `paramSchema` and `searchParamsSchema` are part of the shared contract, so they always come from the shared tree and cannot be set here.
+- **The shared tree is not mutated.** Any number of apps can attach their own metadata to it.
+- `.withMeta<Contract, Context>()` enforces the contract on every entry, as it does on a declared tree; without it each entry is inferred per route.
+
+Each attached tree is walked once more by the compiler, which costs about one level of nesting: the full `collected` union of an attached tree compiles to 29 levels deep, where a declared one reaches 31.
+
+An app that needs the shared tree's hooks but none of its own metadata binds it instead: `bindRoutes(accountRoutes)` from `-next`, or from `-next/pages` on the Pages Router, returns the adapter on the tree as it is, with no copy and no patch.
+
 ## Framework-agnostic use
 
 The route tree is plain data. `@hyeonqyu/typed-router-core` exposes the same declaration with no React dependency at all — for scripts, tests, or a sitemap generator — and the `routes` object from either framework package carries these same methods alongside its hooks:
@@ -242,14 +315,14 @@ test('the route tree matches src/app', () => {
 });
 ```
 
-It reports both directions — a declared route whose page was deleted, and a page the tree never declared — and reads Next's conventions the way Next does: `(group)` and `@slot` folders add no URL segment while pages under them still count, and `(.)` intercepts, `_folder`, `route.ts` and `default.tsx` address no pathname at all. It reads the filesystem, so it lives on its own entry point and never reaches your browser bundle. [Details in the Next guide](./packages/next/README.md#7-keep-the-tree-and-srcapp-in-step).
+It reports both directions — a declared route whose page was deleted, and a page the tree never declared — and reads Next's conventions the way Next does: `(group)` and `@slot` folders add no URL segment while pages under them still count, and `(.)` intercepts, `_folder`, `route.ts` and `default.tsx` address no pathname at all. It reads the filesystem, so it lives on its own entry point and never reaches your browser bundle. [Details in the Next guide](./packages/next/README.md#7-keep-the-tree-and-srcapp-in-step). On the Pages Router, `assertRoutesMatchPagesDir(routes, 'src/pages')` does the same for `pages/`.
 
 ## Packages
 
 | package | for |
 | --- | --- |
 | [`@hyeonqyu/typed-router-core`](./packages/core/README.md) | the tree, types and URL helpers — framework-free |
-| [`@hyeonqyu/typed-router-next`](./packages/next/README.md) | Next.js App Router |
+| [`@hyeonqyu/typed-router-next`](./packages/next/README.md) | Next.js App Router, and the Pages Router via `/pages` |
 | [`@hyeonqyu/typed-router-react`](./packages/react/README.md) | React Router 6/7 library mode |
 
 ### React Router 7 framework mode
