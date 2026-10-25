@@ -22,6 +22,12 @@ npm install @hyeonqyu/typed-router-react zod  # React Router
 
 The rest of this page explains the ideas both guides build on.
 
+## Comparison
+
+typed-router builds React Router's route configuration from a single route tree declaration, and infers metadata types per route. It does not provide data loading, caching or code splitting.
+
+For a feature comparison with other libraries for Next.js and React Router, and with TanStack Router, see the [comparison page](./COMPARISON.md).
+
 ## The route tree
 
 A route tree is a nested object. Each key is a URL segment; a node becomes a real, navigable route the moment it has a `_metadata` block:

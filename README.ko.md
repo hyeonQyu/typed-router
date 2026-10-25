@@ -22,6 +22,12 @@ npm install @hyeonqyu/typed-router-react zod  # React Router
 
 이 페이지의 나머지는 두 가이드가 공통으로 딛고 있는 개념을 설명합니다.
 
+## 다른 라이브러리와 비교
+
+typed-router는 라우트 트리 선언 하나로 React Router의 라우터 설정을 만들고, 라우트마다 메타데이터 타입을 따로 추론합니다. 데이터 로딩, 캐시, 코드 스플리팅은 제공하지 않습니다.
+
+Next.js와 React Router에서 쓸 수 있는 다른 라이브러리, 그리고 TanStack Router와의 기능 비교는 [비교 문서](./COMPARISON.ko.md)에 있습니다.
+
 ## 라우트 트리
 
 라우트 트리는 중첩된 객체입니다. 각 키는 URL 세그먼트이고, 노드는 `_metadata` 블록을 갖는 순간 실제로 이동 가능한 라우트가 됩니다.

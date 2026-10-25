@@ -8,6 +8,8 @@ Type-safe routing for the Next.js App Router and Pages Router. Sections 1–7 co
 npm install @hyeonqyu/typed-router-next zod
 ```
 
+For a comparison with Next's built-in `typedRoutes` and other libraries, see the [comparison page](../../COMPARISON.md#nextjs).
+
 ## 1. Declare your tree
 
 Keys are path segments, so the tree mirrors your `src/app/` directory one for one — `[id]`, `[...slug]` and `(group)` mean exactly what they mean in Next.js. The root, `app/page.tsx`, is the empty key `''`; you still reach it as `routes.buildHref('/')`.
