@@ -8,7 +8,7 @@ Next.js App Router와 Pages Router를 위한 타입 안전 라우팅입니다. 1
 npm install @hyeonqyu/typed-router-next zod
 ```
 
-Next 내장 `typedRoutes`나 `nextjs-routes`, `pathpida`, `next-typesafe-url`, `next-safe-navigation`과 놓고 고민 중이라면 [Next.js 기준 비교](../../COMPARISON.ko.md#nextjs를-쓴다면)를 먼저 보세요.
+Next 내장 `typedRoutes` 등 다른 라이브러리와의 비교는 [비교 문서](../../COMPARISON.ko.md#nextjs)를 참고하세요.
 
 ## 1. 트리 선언하기
 

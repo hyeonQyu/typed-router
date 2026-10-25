@@ -1,152 +1,96 @@
-# 다른 도구와 비교
+# 다른 라이브러리와 비교
 
 [English](./COMPARISON.md) | **한국어**
 
-Next.js를 쓰는 사람과 React Router를 쓰는 사람은 애초에 고를 수 있는 게 다릅니다. Next는 라우팅을 직접 소유하니까 후보가 전부 "그 위에 타입만 얹는 도구"입니다. React Router라면 지금 라우터에 타입을 얹든지, 라우터를 통째로 바꾸든지 둘 중 하나고요. 표 하나로 합쳐봐야 양쪽 다 안 맞아서 나눠 뒀습니다.
+typed-router와 비슷한 문제를 다루는 라이브러리를 기능별로 비교합니다. 프레임워크마다 선택할 수 있는 라이브러리가 달라서 [Next.js](#nextjs)와 [React Router](#react-router)를 나눠서 정리했습니다. 라우터 자체인 [TanStack Router](#tanstack-router)는 따로 다룹니다.
 
-- [Next.js를 쓴다면](#nextjs를-쓴다면)
-- [React Router를 쓴다면](#react-router를-쓴다면)
-- [TanStack Router는 왜 안 쓰나](#tanstack-router는-왜-안-쓰나)
+typed-router는 이미 쓰고 있는 라우터에 타입과 라우트 정보를 더하는 라이브러리입니다. 데이터 로딩, 캐시, 코드 스플리팅, 로딩·에러 UI는 제공하지 않습니다.
 
-기능 설명은 웬만해선 안 바뀝니다. 버전이나 릴리스 날짜, 다운로드 수는 다릅니다. 전부 **2026-10-24**에 typed-router 2.4.1 기준으로 확인했고, 나오는 자리마다 날짜를 적어 뒀습니다.
+> 정확하고 공정하게 작성하려고 했지만 빠지거나 달라진 내용이 있을 수 있습니다. 각 라이브러리의 공식 문서도 함께 확인하세요. 잘못된 내용은 [이슈](https://github.com/hyeonQyu/typed-router/issues)로 알려 주시면 고치겠습니다.
+>
+> 2026-10-24에 각 패키지의 최신 배포본을 기준으로 작성했습니다. 비교한 버전은 [비교 기준](#비교-기준)에 있습니다.
 
-## typed-router에만 있는 것
+**범례:** ✅ 기본 제공 · 🟡 일부 지원 · 🛑 지원하지 않음 · — 해당 없음
 
-조사해 보니 두 가지였습니다.
+## Next.js
 
-### 선언한 트리에서 라우터 설정이 나온다
-
-지금 쓰는 라우터에 타입을 얹어주는 도구는 여럿 있습니다. 그중에 라우터 설정까지 만들어주는 건 typed-router뿐이었습니다. `toRouteObjects()`가 트리를 `createBrowserRouter`에 넣을 배열로 바꿔주기 때문에, 트리에 없는 라우트가 React Router에 존재할 방법이 없습니다.
-
-나머지 도구들은 타입이 붙은 경로 문자열까지만 주고 `<Route>`는 직접 쓰게 합니다. `react-router-typesafe-routes`의 README에 나오는 방식이 이렇습니다.
-
-```tsx
-<Route path={root.user.$path()} element={<User />}>
-```
-
-경로 문자열은 안전합니다. 그런데 이 `<Route>`를 하나 빼먹거나, 트리에 없는 걸 하나 더 써넣어도 아무도 안 잡아줍니다.
-
-### 메타데이터 타입이 라우트마다 따로 붙는다
-
-노드마다 `_metadata`가 자기 모양을 유지합니다. 꺼내 쓸 때도, 전체를 순회할 때도, 한 단계만 훑을 때도 그대로입니다.
-
-```ts
-routes.getMetadata('/products').icon   // string. 이 노드에서 추론됨
-routes.getMetadata('/cart').icon       // 컴파일 에러. /cart엔 icon이 없음
-
-for (const route of routes.collected) {
-  route.metadata.title                 // 여기서도 타입이 살아 있음
-}
-
-Object.entries(children(routes.routes.support)).map(([key, node]) => node._metadata.title);
-```
-
-순회가 생각보다 중요합니다. 메타데이터를 붙이는 이유가 보통 메뉴나 빵부스러기, 사이트맵을 만들기 위해서인데 셋 다 트리를 훑어서 만들거든요. 여기서 타입이 풀려버리면 붙인 의미가 절반은 사라집니다.
-
-다른 도구에서 비슷한 걸 찾으면 전부 전역입니다. TanStack Router의 `staticData`는 `StaticDataRouteOption` 인터페이스 하나를 모든 라우트가 공유합니다. 라우트마다 다른 필드를 넣고 싶으면 앱 전체에서 옵셔널로 선언하는 수밖에 없습니다.
-
-메타데이터가 구조와 분리돼 있으니 모노레포에서는 구조만 공유 패키지에 한 번 선언하고 앱마다 자기 메타데이터를 pathname으로 붙일 수 있습니다. 같은 트리를 쓰면서 A 앱은 번역 키를, B 앱은 lazy 로딩할 엘리먼트를 붙이는 식입니다. `attachMetadata()`는 붙인 값의 타입을 라우트별로 유지하고, 공유 트리에 없는 pathname은 컴파일 타임과 런타임에서 둘 다 거부합니다. 공유 라우트를 지우면 거기에 메타데이터를 붙이던 앱이 전부 깨진다는 뜻입니다. 다른 도구들은 애초에 공유할 메타데이터 자체가 없습니다.
-
-## typed-router가 안 하는 것
-
-데이터는 안 건드립니다. 로더도 캐시도 없고, 재검증이나 Suspense 연동도, 코드 스플리팅도, 로딩·에러 UI도 없습니다. `prefetch`가 있긴 한데 Next에서는 호스트 라우터로 넘기기만 하고 React Router 라이브러리 모드에서는 아무 일도 안 합니다.
-
-Next에서는 트리를 손으로 선언하는데 실제로 서빙되는 건 파일시스템입니다. 둘이 어긋날 수 있다는 뜻입니다. `assertRoutesMatchAppDir()`과 `assertRoutesMatchPagesDir()`이 양쪽을 대조해 주긴 하지만 CI에서 직접 돌려야 하는 검사입니다. 타입 시스템이 알아서 막아주지는 않습니다.
-
-React Router **framework 모드**(`@react-router/dev`)에서는 `toRouteObjects()`를 못 씁니다. 이쪽은 런타임에 해석되는 `element`를 내보내는데 framework 모드는 빌드 타임에 해석할 모듈 경로(`file`)를 원하거든요. 트리에서 설정을 만드는 것 자체는 되고 열다섯 줄 정도면 끝납니다. [루트 README에 설명해 뒀고](./README.ko.md#react-router-7-framework-mode) `examples/react-router-framework-example`이 실제로 돌아갑니다.
-
-그리고 작습니다. 주당 200 다운로드쯤입니다. 많이 쓰이는 대안들이 1.7만~2.7만이니까 자릿수가 다릅니다(2026-10-24). 프로덕션 트래픽을 얼마나 맞아봤느냐의 차이라고 보시면 됩니다.
-
-## Next.js를 쓴다면
-
-라우터는 Next 것이니 전부 그 위에 타입을 얹는 도구입니다.
-
-| | 지원 라우터 | 라우트 선언 | 쿼리 파라미터 | 경로 파라미터 | 라우트별 메타데이터 | 드리프트 검사 |
+|  | typed-router | Next 내장 `typedRoutes` | nextjs-routes | pathpida | next-typesafe-url | next-safe-navigation |
 | --- | --- | --- | --- | --- | --- | --- |
-| Next `typedRoutes` | App + Pages(일부) | 파일시스템에서 생성 | **타입 없음** | `string`, 검증 안 함 | 없음 | 해당 없음 |
-| `nextjs-routes` | App + Pages | 파일시스템에서 생성 | 타입 없음 | 타입만, 검증 안 함 | 없음 | 해당 없음 |
-| `pathpida` | App + Pages | 파일시스템에서 생성(CLI) | URL 만들 때만 | 타입만, 검증 안 함 | 없음 | 해당 없음 |
-| `next-typesafe-url` | App + Pages | 경로는 생성, 스키마는 손으로 | Zod로 검증 | Zod로 검증 | 없음 | 대체로 막힘 |
-| `next-safe-navigation` | **App만** | 손으로 선언(평면) | Standard Schema로 검증 | 검증함 | 없음 | 안 함 |
-| **typed-router** | App + Pages | 손으로 선언(**중첩 트리**) | 검증하거나 **키 이름만** | **세그먼트별 스키마로 검증** | **있음(노드별)** | **양방향, 양쪽 라우터** |
+| App Router | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Pages Router | ✅ | 🟡<sup>1</sup> | ✅ | ✅ | ✅ | 🛑 |
+| 라우트 정의 | 직접 선언 (중첩 트리) | 파일시스템에서 생성 | 파일시스템에서 생성 | 파일시스템에서 생성 | 경로는 생성, 스키마는 직접 작성 | 직접 선언 |
+| pathname 타입 검사 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 경로 파라미터 타입 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 경로 파라미터 런타임 검증 | ✅ | 🛑 | 🛑 | 🛑 | ✅ | ✅ |
+| 쿼리 파라미터 타입 | ✅ | 🛑<sup>2</sup> | 🛑 | 🟡<sup>3</sup> | ✅ | ✅ |
+| 쿼리 파라미터 런타임 검증 | ✅<sup>4</sup> | 🛑 | 🛑 | 🛑 | ✅ | ✅ |
+| 스키마 라이브러리 | Standard Schema | — | — | — | Zod | Standard Schema |
+| 라우트별 메타데이터 | ✅ | 🛑 | 🛑 | 🛑 | 🛑 | 🛑 |
+| 라우트 선언과 파일시스템 대조<sup>5</sup> | ✅<sup>6</sup> | — | — | — | 🟡<sup>7</sup> | 🛑 |
+| `peerDependencies`의 Next 16 포함 | ✅<sup>8</sup> | — | ✅<sup>9</sup> | —<sup>10</sup> | 🛑 | ✅ |
 
-생성기 쪽이 드리프트에서 "해당 없음"인 건 파일시스템을 읽으니까 어긋날 대상이 없기 때문입니다. 그 방식의 진짜 장점이고, typed-router가 검사를 따로 둬야 하는 이유이기도 합니다.
+1. `next/link`의 `href`는 두 라우터에서 모두 검사합니다. Pages Router의 `next/router` 메서드(`push`, `replace` 등)는 검사하지 않습니다. 기본값은 꺼져 있으며 `next.config`에 `typedRoutes: true`를 지정해야 동작합니다.
+2. `href`의 쿼리 부분 타입이 `` `?${string}` ``이어서 어떤 쿼리 문자열도 허용합니다. 페이지의 `searchParams` 타입은 `Record<string, string | string[] | undefined>`입니다.
+3. URL을 만들 때만 타입을 검사합니다. 쿼리를 읽는 쪽 타입은 제공하지 않습니다.
+4. 스키마 대신 `searchParamKeys()`로 키 이름만 선언할 수도 있습니다. 이 경우 값을 검증하지 않고 문자열로 읽습니다.
+5. 파일시스템에서 라우트를 생성하는 라이브러리는 선언과 파일시스템이 어긋날 수 없으므로 해당 없음으로 표시했습니다.
+6. `@hyeonqyu/typed-router-next/check`의 `assertRoutesMatchAppDir()`, `assertRoutesMatchPagesDir()`로 양방향 대조합니다. 테스트나 CI에서 실행하는 검사이며, 타입 검사 단계에서는 잡히지 않습니다.
+7. 경로는 파일시스템에서 생성하고, 쿼리·경로 파라미터 스키마는 별도 파일에 직접 작성합니다.
+8. 저장소의 예제와 CI는 Next 15에서 실행합니다.
+9. `next: *`를 선언합니다. Next 설정 래퍼 `nextRoutes()`는 webpack 설정 콜백으로 생성기를 등록하는데, Turbopack 빌드에서는 이 콜백이 호출되지 않습니다. CLI로 직접 생성할 수 있습니다.
+10. `peerDependencies`를 선언하지 않습니다.
 
-**Next의 `typedRoutes`는 켜야 켜지고, pathname까지만 봅니다.** `next.config`에 `typedRoutes: true`를 넣어야 동작합니다. 문서에도 opt-in이라고 적혀 있습니다. `next/link`의 `href`는 양쪽 라우터에서 타입이 붙고, App Router에서는 `next/navigation`의 `push`·`replace`·`prefetch`까지 봅니다. 다만 Pages Router의 `next/router` 메서드는 타입을 안 붙입니다. 표에 "일부"라고 적은 게 이 얘기입니다. 켜고 나면 뭘 만들어주는지는 빌드된 앱의 `.next/types/routes.d.ts`를 열어보면 나옵니다.
+## React Router
 
-```ts
-"/products/[id]": { "id": string; }
-searchParams: Promise<Record<string, string | string[] | undefined>>
-```
+|  | typed-router | react-router-typesafe-routes | typesafe-routes | @zoontek/chicane | type-route |
+| --- | --- | --- | --- | --- | --- |
+| 대상 라우터 | React Router 6, 7 | React Router 7 | 라우터 무관 | 자체 라우터 | 자체 라우터 |
+| 중첩 라우트 선언 | ✅ | ✅ | ✅ | 🛑 | 🛑 |
+| pathname 타입 검사 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 라우터 설정 생성 | ✅<sup>1</sup> | 🛑<sup>2</sup> | 🛑 | — | — |
+| 쿼리 파라미터 | Standard Schema | Standard Schema, Zod, Yup<sup>3</sup> | 자체 파서 | 문자열 | 자체 타입 정의 |
+| 라우트별 메타데이터 | ✅ | 🛑 | 🛑<sup>4</sup> | 🛑 | 🛑 |
 
-쿼리 파라미터는 그냥 문자열 맵입니다. `href` 쪽도 Next의 typegen 소스를 보면 쿼리 부분이 `` `?${string}` ``이라 뭘 넣든 통과합니다. 동적 세그먼트는 `string`으로만 잡히고 값 검증은 안 합니다. 반대로 말하면 "이 pathname이 진짜 있냐"만 확인하고 싶은 경우엔 `typedRoutes`로 충분하고, 뭘 더 깔 필요도 없습니다.
+1. `toRouteObjects()`가 `createBrowserRouter`에 전달할 라우트 배열을 만듭니다. framework 모드(`@react-router/dev`)에서는 사용할 수 없으며, 라우트 트리로 `routes.ts` 설정을 만드는 방법은 [README](./README.ko.md#react-router-7-framework-mode)에 있습니다.
+2. 타입이 있는 경로 문자열을 제공하며, `<Route>`는 직접 작성합니다.
+3. 해시와 `location.state`에도 스키마를 지정할 수 있습니다. typed-router는 지원하지 않습니다.
+4. 타입 정의에 `meta?: any` 필드가 있으나 라우트별 타입 추론은 없습니다.
 
-**쿼리 키에 타입을 붙이려고 스키마 라이브러리를 깔 필요는 없습니다.** 쿼리 파라미터 칸의 교환 조건이 원래 이거였습니다. 한쪽은 타입 없는 bag, 다른 쪽은 Zod 의존성. `searchParamKeys<'redirectUrl'>()`는 이름만 선언합니다. 선언 안 한 키는 컴파일 에러고, 값은 평문으로 들어가고, 읽으면 `string | string[]`으로 나옵니다. 원래 쿼리가 갖는 모양 그대로죠. 변환도 거부도 없습니다. 그냥 Standard Schema라서 나중에 진짜 검증기로 바꾸는 건 한 줄입니다.
+## TanStack Router
 
-**쿼리 검증과 드리프트 검사를 같이 하는 도구는 드뭅니다.** 둘 다 하는 게 `next-typesafe-url`인데 6.1.0(2025-10-24) 이후로 릴리스가 없습니다. 배포된 `peerDependencies`가 `next: ^13.4.12 || ^14.0.0 || ^15.0.0`이라 Next 16은 선언된 범위 밖입니다. `nextjs-routes`는 마지막 릴리스가 2024-12-31이고, `nextRoutes()` 래퍼가 생성기를 `nextConfig.webpack`에 물려서 설치합니다. Turbopack에서는 Next이 이 콜백을 안 부릅니다. 직접 돌릴 수 있는 CLI는 따로 있습니다. `next-safe-navigation`은 2025-06-24가 마지막이고 `next/navigation`만 import하니 App Router 전용입니다. `pathpida`는 넷 중 릴리스가 제일 활발한데(0.28.0, 2026-10-03) URL 만드는 쪽에만 타입을 붙입니다.
+TanStack Router는 라우터이고, typed-router는 기존 라우터 위에서 동작하는 라이브러리입니다. 범주가 달라서 위 표와 분리했습니다.
 
-같은 잣대를 우리한테도 대면 이렇습니다. typed-router의 Next 패키지는 `next: ^13 || ^14 || ^15 || ^16`을 선언하지만 예제와 CI는 Next 15로 돕니다. peer 범위를 적어둔 건 주장이지 검증이 아닙니다. 남한테 그렇게 따졌으면 우리도 마찬가지입니다.
-
-## React Router를 쓴다면
-
-여기선 선택지가 갈립니다. 지금 라우터에 타입을 얹느냐, 다른 라우터로 가느냐.
-
-| | 대상 라우터 | 라우터 설정 생성 | 쿼리 파라미터 | 라우트별 메타데이터 |
-| --- | --- | --- | --- | --- |
-| `react-router-typesafe-routes` | React Router | 안 함(`<Route>`는 직접) | Standard Schema / Zod / Yup, 해시와 state까지 | 없음 |
-| `typesafe-routes` | 라우터 무관 | 안 함 | 자체 파서 | 없음 |
-| `@zoontek/chicane` | 자체 라우터 | 해당 없음 | 문자열 | 없음 |
-| `type-route` | 자체 라우터 | 해당 없음 | 자체 타입 | 없음 |
-| **typed-router** | React Router 6/7 | **함(`toRouteObjects()`)** | 검증하거나 키 이름만 | **있음(노드별)** |
-
-`react-router-typesafe-routes`는 타입 층 중에서 제일 잘 만들어져 있습니다. typed-router가 손 안 댄 데까지 갑니다. 해시랑 `location.state`에도 스키마가 붙고, 중첩 `<Routes>`용 상대 경로 처리도 있습니다. 다만 라우터 설정은 건드리지 않습니다. 그래서 타입 붙인 트리와 React Router가 실제로 서빙하는 라우트, 이렇게 두 벌을 손으로 맞춰가야 합니다.
-
-`@zoontek/chicane`이나 `type-route`는 React Router 자리에 자기네 소형 라우터를 넣습니다. 교환 조건이 완전히 다릅니다. 타입이 일관되게 붙은 라우터를 얻는 대신 React Router 생태계를 내려놓게 됩니다.
-
-2026-10-24 기준으로 정리하면 이렇습니다.
-
-| | 주당 다운로드 | 마지막 릴리스 |
+|  | typed-router | TanStack Router |
 | --- | --- | --- |
-| `nextjs-routes` | 2.73만 | 2.2.5 (2024-12-31) |
-| `pathpida` | 1.90만 | 0.28.0 (2026-10-03) |
-| `react-router-typesafe-routes` | 1.70만 | 2.2.1 (2025-07-21) |
-| `next-typesafe-url` | 8.2천 | 6.1.0 (2025-10-24) |
-| `typesafe-routes` | 4.1천 | 12.3.0 (2025-08-12, 커밋은 2026-08까지) |
-| `type-route` | 2.5천 | 1.1.0 (2023-12-09) |
-| `next-safe-navigation` | 1.8천 | 0.4.0 (2025-06-24) |
-| `@zoontek/chicane` | 482 | 3.0.0 (2026-04-20) |
-| typed-router | 200쯤 | 2.4.1 (2026-10-18) |
+| 역할 | 기존 라우터에 타입 추가 | 라우터 |
+| Next.js에서 사용 | ✅ | 🛑<sup>1</sup> |
+| React Router 유지 | ✅ | 🛑 (라우터를 교체) |
+| pathname·파라미터 타입 검사 | ✅ | ✅ |
+| 쿼리 파라미터 런타임 검증 | ✅ | ✅ |
+| 데이터 로딩·캐시 | 🛑 | ✅ |
+| 프리로드 | 🛑<sup>2</sup> | ✅ |
+| 코드 스플리팅 | 🛑 | ✅ |
+| 로딩·에러 UI | 🛑 | ✅ |
+| 라우트별 메타데이터 타입 | ✅ | 🟡<sup>3</sup> |
 
-## TanStack Router는 왜 안 쓰나
+1. TanStack은 Next.js 통합을 제공하지 않습니다. `@tanstack/router-plugin`의 진입점은 Vite, Rspack, esbuild, webpack용이고, `@tanstack/react-start`는 `vite` 또는 `@rsbuild/core`를 peer로 요구합니다. Next.js 관련 공식 문서는 [Next.js에서 TanStack Start로 옮기는 가이드](https://tanstack.com/start/latest/docs/framework/react/migrate-from-next-js)입니다.
+2. `prefetch`는 Next.js에서 Next 라우터의 prefetch를 호출하며, React Router 라이브러리 모드에서는 동작하지 않습니다.
+3. `staticData`의 타입은 모든 라우트가 공유하는 `StaticDataRouteOption` 인터페이스 하나로 정해집니다. 라우트마다 다른 필드는 이 인터페이스에 옵셔널로 선언해야 합니다.
 
-같은 종류의 물건이 아닙니다. TanStack Router는 라우터입니다. 로더, 캐시, 프리로드, 코드 스플리팅, pending·에러 바운더리를 다 갖고 있고 쿼리 파라미터 상태도 라우터가 직접 관리합니다. typed-router는 이미 있는 라우터 위에 타입과 IA를 얹는 층이고 저 목록에 해당하는 게 하나도 없습니다.
+## 비교 기준
 
-채택 규모도 비교가 안 됩니다. `@tanstack/react-router-devtools`가 주당 260만입니다(TanStack Start가 라우터를 고정 의존성으로 끌고 들어오는 효과가 안 섞인 지표라 이걸 씁니다). typed-router는 200쯤입니다.
+2026-10-24 기준 npm 최신 배포본입니다. 각 항목은 배포된 패키지의 진입점, `peerDependencies`, 소스와 공식 문서를 기준으로 확인했습니다.
 
-그래서 대체재가 되느냐는 세 가지로 갈립니다.
-
-**Next.js에서는 아예 선택지가 아닙니다.** 라우팅을 Next이 갖고 있고, TanStack은 Next용 통합을 안 만듭니다. `@tanstack/router-plugin`이 내보내는 진입점은 Vite, Rspack, esbuild, webpack입니다. Next이나 Turbopack용은 없습니다. `@tanstack/react-start`는 peer로 `vite >=8`이나 `@rsbuild/core ^2`를 요구합니다. TanStack에 있는 유일한 Next.js 문서는 [Next에서 빠져나오는 가이드](https://tanstack.com/start/latest/docs/framework/react/migrate-from-next-js)인데, 첫 단계가 Next.js를 지우라는 겁니다. (2026-10-24에 `@tanstack/router-plugin` 1.168.48, `@tanstack/react-start` 1.169.4로 확인했습니다.)
-
-**React Router에서는 야심이 아니라 변경 범위가 기준입니다.** TanStack Router를 도입하면 라우터를 갈아치우고 그쪽 런타임과 개념까지 같이 받습니다. typed-router는 React Router를 그대로 두고 타입과 선언된 IA만 얹습니다. 렌더링을 안 건드리니까 나중에 걷어내기도 쉽습니다.
-
-**메타데이터 타입이 붙는 방식이 다릅니다.** TanStack의 `staticData`는 앱 전체가 공유하는 인터페이스 하나입니다. typed-router는 라우트마다 그 라우트의 선언에서 추론합니다. 여기엔 아이콘, 저기엔 권한, 또 다른 데는 빵부스러기 라벨을 붙이고 있다면 이 차이가 바로 느껴집니다.
-
-## 어떻게 확인했나
-
-typed-router에 대한 위 내용은 전부 이 저장소의 2.4.1 코드로 다시 돌려봤습니다. 예전 초안에서 그대로 가져온 건 없습니다.
-
-- 객체와 배열 쿼리 파라미터가 `buildHref` → `parseSearchParams`로 왕복하는지
-- `parseParams`가 `/products/[id]`를 숫자로 바꾸고 `abc`에는 `PathParamsParseError`를 던지는지
-- `routes.collected[n].metadata`와 `children(node)`가 `tsc` 아래에서 타입을 유지하는지
-- `searchParamKeys`가 선언 안 한 키와 객체 값을 컴파일 타임에 거부하고, 읽을 때 문자열로 돌려주는지
-- `attachMetadata`가 붙인 메타데이터의 타입을 유지하고, 없는 pathname을 컴파일 타임과 런타임에서 모두 거부하는지
-- `findRouteDrift`와 `findPagesDirDrift`가 실제 `app/`·`pages/` 디렉터리를 놓고 "선언했는데 없는 라우트"와 "선언 안 했는데 서빙되는 페이지"를 둘 다 잡는지
-
-다른 라이브러리 얘기는 홈페이지가 아니라 배포된 물건에서 가져왔습니다. `peerDependencies`와 릴리스 날짜는 npm 레지스트리, 커밋 날짜는 GitHub API, `exports` 맵은 배포 패키지에서 직접 읽었습니다. `nextjs-routes`와 Next의 typegen은 배포된 소스를 봤습니다. 어느 라우터를 지원하는지도 같은 방식으로 확인했습니다. 진입점과 `next/router`·`next/navigation` 중 무엇을 import하는지를 보면 됩니다. 직접 확인하고 싶으시면 이 두 줄이면 대부분 나옵니다.
-
-```bash
-npm view <패키지> peerDependencies
-gh api repos/<owner>/<repo>/commits?per_page=1
-```
-
-제일 빨리 낡는 건 "이 라이브러리 멈췄다", "이 버전은 지원 안 한다" 쪽입니다. 다운로드 수도 움직입니다. 위 숫자는 2026-09-03과 2026-10-24 사이에 전부 3분의 1쯤 빠졌는데, 개별 라이브러리 사정보다 레지스트리 집계 쪽 얘기로 보입니다. 2026-10-24에서 한참 지나서 보고 계신다면 믿기 전에 한 번 확인해 보세요.
+| 패키지 | 버전 |
+| --- | --- |
+| `@hyeonqyu/typed-router-*` | 2.4.1 |
+| `next` | 16.4.3 |
+| `nextjs-routes` | 2.2.5 |
+| `pathpida` | 0.28.0 |
+| `next-typesafe-url` | 6.1.0 |
+| `next-safe-navigation` | 0.4.0 |
+| `react-router-typesafe-routes` | 2.2.1 |
+| `typesafe-routes` | 12.3.0 |
+| `@zoontek/chicane` | 3.0.0 |
+| `type-route` | 1.1.0 |
+| `@tanstack/react-router` | 1.170.46 |

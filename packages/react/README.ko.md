@@ -8,7 +8,7 @@ React Router 6/7을 위한 타입 안전 라우팅입니다. typed-router가 처
 npm install @hyeonqyu/typed-router-react zod
 ```
 
-`react-router-typesafe-routes`나 `typesafe-routes`, 아니면 TanStack Router로 갈아탈지 고민 중이라면 [React Router 기준 비교](../../COMPARISON.ko.md#react-router를-쓴다면)를 먼저 보세요.
+다른 라이브러리 및 TanStack Router와의 비교는 [비교 문서](../../COMPARISON.ko.md#react-router)를 참고하세요.
 
 ## 1. 트리 선언하기
 
