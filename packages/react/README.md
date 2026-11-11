@@ -8,6 +8,8 @@ Type-safe routing for React Router 6/7. If you're new to typed-router, [the proj
 npm install @hyeonqyu/typed-router-react zod
 ```
 
+For a comparison with other libraries and TanStack Router, see the [comparison page](../../COMPARISON.md#react-router).
+
 ## 1. Declare your tree
 
 Same tree shape as any other typed-router adapter, plus one thing React Router actually needs: an element to render. Put it on `_metadata.element`; put a wrapping layout on `_metadata.layout`.
